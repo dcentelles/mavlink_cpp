@@ -268,7 +268,7 @@ int main(int argc, char *argv[]) {
   locAddr.sin_family = AF_INET;
   locAddr.sin_addr.s_addr = INADDR_ANY;
   // locAddr.sin_port = htons(14550);
-  locAddr.sin_port = htons(14551);
+  locAddr.sin_port = htons(14558);
 
   if (-1 == bind(sock, (struct sockaddr *)&locAddr, sizeof(struct sockaddr))) {
     perror("error bind failed");
@@ -292,7 +292,7 @@ int main(int argc, char *argv[]) {
   gcAddr.sin_family = AF_INET;
   gcAddr.sin_addr.s_addr = inet_addr(target_ip);
   // gcAddr.sin_port = htons(14555);
-  gcAddr.sin_port = htons(14550);
+  gcAddr.sin_port = htons(14557);
 
   std::thread work([sock, gcAddr]() {
 
@@ -324,7 +324,7 @@ int main(int argc, char *argv[]) {
       sleep(1); // Sleep one second
     }
 
-    while (false) {
+    while (true) {
 
       uint8_t txbuf[BUFFER_LENGTH];
       mavlink::common::msg::HEARTBEAT hb;
@@ -371,13 +371,14 @@ int main(int argc, char *argv[]) {
           // Mavlink Packet Received
           mavlink::MsgMap msgMap(&msg);
           bool print = true;
-          std::cout << "ID: " << msg.msgid << std::endl;
+          // std::cout << "ID: " << msg.msgid << std::endl;
           switch (msg.msgid) {
           case msg::HEARTBEAT::MSG_ID: {
-            if (print) {
-              std::cout << "MANUAL CONTROL ID: "
-                        << mavlink::common::msg::MANUAL_CONTROL::MSG_ID
-                        << std::endl;
+            if (false) {
+              //              std::cout << "MANUAL CONTROL ID: "
+              //                        <<
+              //                        mavlink::common::msg::MANUAL_CONTROL::MSG_ID
+              //                        << std::endl;
               mavlink::common::msg::HEARTBEAT hb;
               hb.deserialize(msgMap);
               std::string hbStr = hb.to_yaml();

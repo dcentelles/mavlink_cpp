@@ -1,0 +1,3 @@
+[submodule "modules/cpplogging"]
+	path = modules/cpplogging
+	url = https://github.com/dcentelles/cpplogging.git

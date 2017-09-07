@@ -59,12 +59,12 @@ message(STATUS "PROJECT NAME: ${PROJECT_NAME}")
 ####### BUILD DEPENDENCIES #######
 ##################################
 
-SET(${PROJECT_NAME}_DEPS_DIR ${MODULES_DIR})
-SET(${PROJECT_NAME}_TMP0 ${CMAKE_CURRENT_SOURCE_DIR}/${${PROJECT_NAME}_DEPS_DIR})
-GETPROJECTS(${PROJECT_NAME}_DEPS ${${PROJECT_NAME}_TMP0})
-message(STATUS "Dependencies found in ${${PROJECT_NAME}_TMP0}: ${${PROJECT_NAME}_DEPS}")
-FOREACH(subdir ${${PROJECT_NAME}_DEPS})
-add_subdirectory(${${PROJECT_NAME}_DEPS_DIR}/${subdir})
+SET(DEPS_DIR ${MODULES_DIR})
+SET(TMP0 ${CMAKE_CURRENT_SOURCE_DIR}/${DEPS_DIR})
+GETPROJECTS(DEPS ${TMP0})
+message(STATUS "Dependencies found in ${TMP0}: ${DEPS}")
+FOREACH(subdir ${DEPS})
+    add_subdirectory(${DEPS_DIR}/${subdir})
 ENDFOREACH()
 
 ##################################
@@ -83,7 +83,18 @@ include_directories(
   ${${PROJECT_NAME}_INCLUDE_DIRS}
 )
 
+SET(${PROJECT_NAME}_CPP_FILES
+    ${SRCPATH}/lib/GCS.cpp)
+
+add_library(${PROJECT_NAME} SHARED ${${PROJECT_NAME}_CPP_FILES})
+target_include_directories(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${CPPLOGGING_GIT})
+
 SET(MAINPATH ${SRCPATH}main)
+
+add_executable(test0 ${MAINPATH}/test0.cpp)
+target_link_libraries(test0 ${PROJECT_NAME} ${CPPLOGGING_GIT})
+
 add_executable(testing ${MAINPATH}/mavlink_udp.cpp)
 target_include_directories(testing PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
 target_link_libraries(testing pthread)
