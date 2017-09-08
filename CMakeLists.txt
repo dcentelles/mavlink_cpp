@@ -71,7 +71,7 @@ ENDFOREACH()
 ######### BUILD PROJECT ##########
 ##################################
 
-SET(${PROJECT_NAME}_CXX_COMPILE_FLAGS "-fPIC -std=c++11")
+SET(${PROJECT_NAME}_CXX_COMPILE_FLAGS "-fPIC -std=c++14")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${${PROJECT_NAME}_CXX_COMPILE_FLAGS}")
 
 SET(SRCPATH src/)
