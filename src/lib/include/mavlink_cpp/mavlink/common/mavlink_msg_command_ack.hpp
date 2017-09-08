@@ -9,7 +9,7 @@ namespace msg {
 /**
  * @brief COMMAND_ACK message
  *
- * Report status of a command. Includes feedback wether the command was executed.
+ * Report status of a command. Includes feedback whether the command was executed.
  */
 struct COMMAND_ACK : mavlink::Message {
     static constexpr msgid_t MSG_ID = 77;

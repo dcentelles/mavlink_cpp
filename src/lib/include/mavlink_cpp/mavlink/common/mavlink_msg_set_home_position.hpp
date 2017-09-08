@@ -13,7 +13,7 @@ namespace msg {
  */
 struct SET_HOME_POSITION : mavlink::Message {
     static constexpr msgid_t MSG_ID = 243;
-    static constexpr size_t LENGTH = 53;
+    static constexpr size_t LENGTH = 61;
     static constexpr size_t MIN_LENGTH = 53;
     static constexpr uint8_t CRC_EXTRA = 85;
     static constexpr auto NAME = "SET_HOME_POSITION";
@@ -30,6 +30,7 @@ struct SET_HOME_POSITION : mavlink::Message {
     float approach_x; /*< Local X position of the end of the approach vector. Multicopters should set this position based on their takeoff path. Grass-landing fixed wing aircraft should set it the same way as multicopters. Runway-landing fixed wing aircraft should set it to the opposite direction of the takeoff, assuming the takeoff happened from the threshold / touchdown zone. */
     float approach_y; /*< Local Y position of the end of the approach vector. Multicopters should set this position based on their takeoff path. Grass-landing fixed wing aircraft should set it the same way as multicopters. Runway-landing fixed wing aircraft should set it to the opposite direction of the takeoff, assuming the takeoff happened from the threshold / touchdown zone. */
     float approach_z; /*< Local Z position of the end of the approach vector. Multicopters should set this position based on their takeoff path. Grass-landing fixed wing aircraft should set it the same way as multicopters. Runway-landing fixed wing aircraft should set it to the opposite direction of the takeoff, assuming the takeoff happened from the threshold / touchdown zone. */
+    uint64_t time_usec; /*< Timestamp (microseconds since UNIX epoch or microseconds since system boot) */
 
 
     inline std::string get_name(void) const override
@@ -58,6 +59,7 @@ struct SET_HOME_POSITION : mavlink::Message {
         ss << "  approach_x: " << approach_x << std::endl;
         ss << "  approach_y: " << approach_y << std::endl;
         ss << "  approach_z: " << approach_z << std::endl;
+        ss << "  time_usec: " << time_usec << std::endl;
 
         return ss.str();
     }
@@ -77,6 +79,7 @@ struct SET_HOME_POSITION : mavlink::Message {
         map << approach_y;                    // offset: 44
         map << approach_z;                    // offset: 48
         map << target_system;                 // offset: 52
+        map << time_usec;                     // offset: 53
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
@@ -92,6 +95,7 @@ struct SET_HOME_POSITION : mavlink::Message {
         map >> approach_y;                    // offset: 44
         map >> approach_z;                    // offset: 48
         map >> target_system;                 // offset: 52
+        map >> time_usec;                     // offset: 53
     }
 };
 

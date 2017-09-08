@@ -13,15 +13,14 @@ namespace msg {
  */
 struct CAMERA_IMAGE_CAPTURED : mavlink::Message {
     static constexpr msgid_t MSG_ID = 263;
-    static constexpr size_t LENGTH = 255;
-    static constexpr size_t MIN_LENGTH = 255;
-    static constexpr uint8_t CRC_EXTRA = 133;
+    static constexpr size_t LENGTH = 254;
+    static constexpr size_t MIN_LENGTH = 254;
+    static constexpr uint8_t CRC_EXTRA = 46;
     static constexpr auto NAME = "CAMERA_IMAGE_CAPTURED";
 
 
     uint32_t time_boot_ms; /*< Timestamp (milliseconds since system boot) */
     uint64_t time_utc; /*< Timestamp (microseconds since UNIX epoch) in UTC. 0 for unknown. */
-    uint8_t camera_id; /*< Camera ID (1 for first, 2 for second, etc.) */
     int32_t lat; /*< Latitude, expressed as degrees * 1E7 where image was taken */
     int32_t lon; /*< Longitude, expressed as degrees * 1E7 where capture was taken */
     int32_t alt; /*< Altitude in meters, expressed as * 1E3 (AMSL, not WGS84) where image was taken */
@@ -49,7 +48,6 @@ struct CAMERA_IMAGE_CAPTURED : mavlink::Message {
         ss << NAME << ":" << std::endl;
         ss << "  time_boot_ms: " << time_boot_ms << std::endl;
         ss << "  time_utc: " << time_utc << std::endl;
-        ss << "  camera_id: " << +camera_id << std::endl;
         ss << "  lat: " << lat << std::endl;
         ss << "  lon: " << lon << std::endl;
         ss << "  alt: " << alt << std::endl;
@@ -74,9 +72,8 @@ struct CAMERA_IMAGE_CAPTURED : mavlink::Message {
         map << relative_alt;                  // offset: 24
         map << q;                             // offset: 28
         map << image_index;                   // offset: 44
-        map << camera_id;                     // offset: 48
-        map << capture_result;                // offset: 49
-        map << file_url;                      // offset: 50
+        map << capture_result;                // offset: 48
+        map << file_url;                      // offset: 49
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
@@ -89,9 +86,8 @@ struct CAMERA_IMAGE_CAPTURED : mavlink::Message {
         map >> relative_alt;                  // offset: 24
         map >> q;                             // offset: 28
         map >> image_index;                   // offset: 44
-        map >> camera_id;                     // offset: 48
-        map >> capture_result;                // offset: 49
-        map >> file_url;                      // offset: 50
+        map >> capture_result;                // offset: 48
+        map >> file_url;                      // offset: 49
     }
 };
 

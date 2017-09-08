@@ -13,24 +13,25 @@ namespace msg {
  */
 struct CAMERA_INFORMATION : mavlink::Message {
     static constexpr msgid_t MSG_ID = 259;
-    static constexpr size_t LENGTH = 91;
-    static constexpr size_t MIN_LENGTH = 91;
-    static constexpr uint8_t CRC_EXTRA = 49;
+    static constexpr size_t LENGTH = 235;
+    static constexpr size_t MIN_LENGTH = 235;
+    static constexpr uint8_t CRC_EXTRA = 92;
     static constexpr auto NAME = "CAMERA_INFORMATION";
 
 
     uint32_t time_boot_ms; /*< Timestamp (milliseconds since system boot) */
-    uint8_t camera_id; /*< Camera ID (1 for first, 2 for second, etc.) */
-    uint8_t camera_count; /*< Number of cameras */
     std::array<uint8_t, 32> vendor_name; /*< Name of the camera vendor */
     std::array<uint8_t, 32> model_name; /*< Name of the camera model */
-    uint32_t firmware_version; /*< Version of the camera firmware */
+    uint32_t firmware_version; /*< Version of the camera firmware (v << 24 & 0xff = Dev, v << 16 & 0xff = Patch, v << 8 & 0xff = Minor, v & 0xff = Major) */
     float focal_length; /*< Focal length in mm */
     float sensor_size_h; /*< Image sensor size horizontal in mm */
     float sensor_size_v; /*< Image sensor size vertical in mm */
     uint16_t resolution_h; /*< Image resolution in pixels horizontal */
     uint16_t resolution_v; /*< Image resolution in pixels vertical */
     uint8_t lens_id; /*< Reserved for a lens ID */
+    uint32_t flags; /*< CAMERA_CAP_FLAGS enum flags (bitmap) describing camera capabilities. */
+    uint16_t cam_definition_version; /*< Camera definition version (iteration) */
+    std::array<char, 140> cam_definition_uri; /*< Camera definition URI (if any, otherwise only basic functions will be available). */
 
 
     inline std::string get_name(void) const override
@@ -49,8 +50,6 @@ struct CAMERA_INFORMATION : mavlink::Message {
 
         ss << NAME << ":" << std::endl;
         ss << "  time_boot_ms: " << time_boot_ms << std::endl;
-        ss << "  camera_id: " << +camera_id << std::endl;
-        ss << "  camera_count: " << +camera_count << std::endl;
         ss << "  vendor_name: [" << to_string(vendor_name) << "]" << std::endl;
         ss << "  model_name: [" << to_string(model_name) << "]" << std::endl;
         ss << "  firmware_version: " << firmware_version << std::endl;
@@ -60,6 +59,9 @@ struct CAMERA_INFORMATION : mavlink::Message {
         ss << "  resolution_h: " << resolution_h << std::endl;
         ss << "  resolution_v: " << resolution_v << std::endl;
         ss << "  lens_id: " << +lens_id << std::endl;
+        ss << "  flags: " << flags << std::endl;
+        ss << "  cam_definition_version: " << cam_definition_version << std::endl;
+        ss << "  cam_definition_uri: \"" << to_string(cam_definition_uri) << "\"" << std::endl;
 
         return ss.str();
     }
@@ -73,13 +75,14 @@ struct CAMERA_INFORMATION : mavlink::Message {
         map << focal_length;                  // offset: 8
         map << sensor_size_h;                 // offset: 12
         map << sensor_size_v;                 // offset: 16
-        map << resolution_h;                  // offset: 20
-        map << resolution_v;                  // offset: 22
-        map << camera_id;                     // offset: 24
-        map << camera_count;                  // offset: 25
-        map << vendor_name;                   // offset: 26
-        map << model_name;                    // offset: 58
-        map << lens_id;                       // offset: 90
+        map << flags;                         // offset: 20
+        map << resolution_h;                  // offset: 24
+        map << resolution_v;                  // offset: 26
+        map << cam_definition_version;        // offset: 28
+        map << vendor_name;                   // offset: 30
+        map << model_name;                    // offset: 62
+        map << lens_id;                       // offset: 94
+        map << cam_definition_uri;            // offset: 95
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
@@ -89,13 +92,14 @@ struct CAMERA_INFORMATION : mavlink::Message {
         map >> focal_length;                  // offset: 8
         map >> sensor_size_h;                 // offset: 12
         map >> sensor_size_v;                 // offset: 16
-        map >> resolution_h;                  // offset: 20
-        map >> resolution_v;                  // offset: 22
-        map >> camera_id;                     // offset: 24
-        map >> camera_count;                  // offset: 25
-        map >> vendor_name;                   // offset: 26
-        map >> model_name;                    // offset: 58
-        map >> lens_id;                       // offset: 90
+        map >> flags;                         // offset: 20
+        map >> resolution_h;                  // offset: 24
+        map >> resolution_v;                  // offset: 26
+        map >> cam_definition_version;        // offset: 28
+        map >> vendor_name;                   // offset: 30
+        map >> model_name;                    // offset: 62
+        map >> lens_id;                       // offset: 94
+        map >> cam_definition_uri;            // offset: 95
     }
 };
 

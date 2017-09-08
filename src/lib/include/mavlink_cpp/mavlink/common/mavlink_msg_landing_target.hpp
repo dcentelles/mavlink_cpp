@@ -13,7 +13,7 @@ namespace msg {
  */
 struct LANDING_TARGET : mavlink::Message {
     static constexpr msgid_t MSG_ID = 149;
-    static constexpr size_t LENGTH = 30;
+    static constexpr size_t LENGTH = 60;
     static constexpr size_t MIN_LENGTH = 30;
     static constexpr uint8_t CRC_EXTRA = 200;
     static constexpr auto NAME = "LANDING_TARGET";
@@ -27,6 +27,12 @@ struct LANDING_TARGET : mavlink::Message {
     float distance; /*< Distance to the target from the vehicle in meters */
     float size_x; /*< Size in radians of target along x-axis */
     float size_y; /*< Size in radians of target along y-axis */
+    float x; /*< X Position of the landing target on MAV_FRAME */
+    float y; /*< Y Position of the landing target on MAV_FRAME */
+    float z; /*< Z Position of the landing target on MAV_FRAME */
+    std::array<float, 4> q; /*< Quaternion of landing target orientation (w, x, y, z order, zero-rotation is 1, 0, 0, 0) */
+    uint8_t type; /*< LANDING_TARGET_TYPE enum specifying the type of landing target */
+    uint8_t position_valid; /*< Boolean indicating known position (1) or default unkown position (0), for validation of positioning of the landing target */
 
 
     inline std::string get_name(void) const override
@@ -52,6 +58,12 @@ struct LANDING_TARGET : mavlink::Message {
         ss << "  distance: " << distance << std::endl;
         ss << "  size_x: " << size_x << std::endl;
         ss << "  size_y: " << size_y << std::endl;
+        ss << "  x: " << x << std::endl;
+        ss << "  y: " << y << std::endl;
+        ss << "  z: " << z << std::endl;
+        ss << "  q: [" << to_string(q) << "]" << std::endl;
+        ss << "  type: " << +type << std::endl;
+        ss << "  position_valid: " << +position_valid << std::endl;
 
         return ss.str();
     }
@@ -68,6 +80,12 @@ struct LANDING_TARGET : mavlink::Message {
         map << size_y;                        // offset: 24
         map << target_num;                    // offset: 28
         map << frame;                         // offset: 29
+        map << x;                             // offset: 30
+        map << y;                             // offset: 34
+        map << z;                             // offset: 38
+        map << q;                             // offset: 42
+        map << type;                          // offset: 58
+        map << position_valid;                // offset: 59
     }
 
     inline void deserialize(mavlink::MsgMap &map) override
@@ -80,6 +98,12 @@ struct LANDING_TARGET : mavlink::Message {
         map >> size_y;                        // offset: 24
         map >> target_num;                    // offset: 28
         map >> frame;                         // offset: 29
+        map >> x;                             // offset: 30
+        map >> y;                             // offset: 34
+        map >> z;                             // offset: 38
+        map >> q;                             // offset: 42
+        map >> type;                          // offset: 58
+        map >> position_valid;                // offset: 59
     }
 };
 

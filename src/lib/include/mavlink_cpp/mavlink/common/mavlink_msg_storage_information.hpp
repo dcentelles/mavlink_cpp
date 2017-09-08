@@ -9,7 +9,7 @@ namespace msg {
 /**
  * @brief STORAGE_INFORMATION message
  *
- * WIP: Information about a storage medium
+ * WIP: Information about a storage medium.
  */
 struct STORAGE_INFORMATION : mavlink::Message {
     static constexpr msgid_t MSG_ID = 261;
