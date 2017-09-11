@@ -84,7 +84,8 @@ void GCS::_RunManualControlWork() {
       _manual_control_msg_mutex.unlock();
 
       msgstr = _manual_control_msg.to_yaml();
-      Debug("RunManualControlWork: SEND:\n{}", msgstr);
+      Info("RunManualControlWork (to: {}): SEND:\n{}", _ardupilotAddr.sin_port,
+           msgstr);
       std::this_thread::sleep_for(100ms);
     }
   });
@@ -108,26 +109,24 @@ void GCS::_RunHeartBeatWork() {
       int len, bytes_sent;
       memset(txbuf, 0, BUFFER_LENGTH);
       hb.type = (int)MAV_TYPE::GCS;
-      hb.autopilot = (int)MAV_AUTOPILOT::GENERIC;
-      hb.base_mode = (int)MAV_MODE::MANUAL_ARMED;
-      // hb.base_mode = (int)MAV_MODE::GUIDED_ARMED;
+      hb.base_mode = ((int)MAV_MODE_FLAG::MANUAL_INPUT_ENABLED |
+                      (int)MAV_MODE_FLAG::SAFETY_ARMED);
       hb.custom_mode = 0;
-      hb.system_status = (int)MAV_STATE::ACTIVE;
       // hb.mavlink_version = (uint8_t)MAV_PROTOCOL_CAPABILITY::MAVLINK2;
 
       mavlink_message_t auxMsg;
       mavlink::MsgMap msg2send(auxMsg);
       hb.serialize(msg2send);
 
-      mavlink::mavlink_finalize_message(&auxMsg, 1, 1, hb.MIN_LENGTH, hb.LENGTH,
-                                        hb.CRC_EXTRA);
+      mavlink::mavlink_finalize_message(&auxMsg, 255, 1, hb.MIN_LENGTH,
+                                        hb.LENGTH, hb.CRC_EXTRA);
 
       len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
       bytes_sent =
           sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
                  sizeof(struct sockaddr_in));
       msgstr = hb.to_yaml();
-      Debug("RunHeartBeatWork:\n{}", msgstr);
+      Debug("RunHeartBeatWork (to {}):\n{}", _ardupilotAddr.sin_port, msgstr);
       std::this_thread::sleep_for(1s);
     }
   });
@@ -136,7 +135,7 @@ void GCS::_RunHeartBeatWork() {
 
 void GCS::_RunRxWork() {
   std::thread work([this]() {
-    socklen_t fromlen;
+    socklen_t fromlen = sizeof(sockaddr);
     ssize_t recsize;
     struct sockaddr_in ardupilotAddr;
     while (true) {

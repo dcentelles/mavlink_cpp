@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
   // gcAddr.sin_port = htons(14555);
   gcAddr.sin_port = htons(14550);
 
-  std::thread work([sock, gcAddr]() {
+  std::thread work([&sock, &gcAddr]() {
 
     while (false) {
       uint8_t txbuf[BUFFER_LENGTH];
@@ -255,7 +255,7 @@ int main(int argc, char *argv[]) {
             mavlink::common::msg::MANUAL_CONTROL mcm;
             mcm.deserialize(msgMap);
             std::string mcmStr = mcm.to_yaml();
-            // fprintf(stdout, "\n%s\n", mcmStr.c_str());
+            fprintf(stdout, "\n%s\n", mcmStr.c_str());
             break;
           }
           case mavlink::common::msg::RAW_IMU::MSG_ID: {

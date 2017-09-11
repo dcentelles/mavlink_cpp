@@ -24,9 +24,12 @@ int main(void) {
   while (true) {
     // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     // log->Info("GCS is running");
-    for (int i = 0; i <= 1000; i += 20) {
-      control->SetManualControl(i, 0, 0, 0);
-      std::this_thread::sleep_for(100ms);
+    for (int i = -1000; i <= 1000; i += 20) {
+      // control->SetManualControl(i, i, i, i);
+      control->SetManualControl(0, i, 506, -23);
+      std::this_thread::sleep_for(300ms);
     }
+    control->SetManualControl(0, 0, 506, -23);
+    std::this_thread::sleep_for(3s);
   }
 }
