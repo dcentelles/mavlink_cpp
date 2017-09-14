@@ -40,9 +40,20 @@ GCS::GCS(uint16_t ownPort) {
 }
 
 void GCS::Start() {
-  _RunManualControlWork();
-  _RunHeartBeatWork();
   _RunRxWork();
+  std::thread work([this]() {
+    std::unique_lock<std::mutex> lock(_ardupilotAddrMutex);
+    while (!_ardupilotDetected) {
+      _ardupilotAddrCond.wait_for(lock, 2000ms);
+      Info("Waiting for the first ardupilot message...");
+    }
+    lock.unlock();
+    Info("Ardupilot detected!");
+    _RunHeartBeatWork();
+    _RunManualControlWork();
+    Info("GCS initialized!");
+  });
+  work.detach();
 }
 
 void GCS::SetManualControl(int16_t x, int16_t y, int16_t z, int16_t r) {
@@ -56,18 +67,11 @@ void GCS::SetManualControl(int16_t x, int16_t y, int16_t z, int16_t r) {
 
 void GCS::_RunManualControlWork() {
   std::thread work([this]() {
-    std::unique_lock<std::mutex> lock(_ardupilotAddrMutex);
-    while (!_ardupilotDetected) {
-      _ardupilotAddrCond.wait_for(lock, 2000ms);
-      Info("RunManualControlWork: Waiting for the first ardupilot message...");
-    }
-    lock.unlock();
-    Info("RunManualControlWork: Ardupilot message received!");
-
     std::string msgstr;
+    uint8_t txbuff[BUFFER_LENGTH];
     while (true) {
       int len, bytes_sent;
-      memset(_txbuf, 0, BUFFER_LENGTH);
+      memset(txbuff, 0, BUFFER_LENGTH);
       mavlink_message_t auxMsg;
       mavlink::MsgMap msg2send(auxMsg);
 
@@ -77,31 +81,52 @@ void GCS::_RunManualControlWork() {
       mavlink_finalize_message(&auxMsg, 255, 0, _manual_control_msg.MIN_LENGTH,
                                _manual_control_msg.LENGTH,
                                _manual_control_msg.CRC_EXTRA);
-      len = mavlink_msg_to_send_buffer(_txbuf, &auxMsg);
+      len = mavlink_msg_to_send_buffer(txbuff, &auxMsg);
       bytes_sent =
-          sendto(_sockfd, _txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+          sendto(_sockfd, txbuff, len, 0, (struct sockaddr *)&_ardupilotAddr,
                  sizeof(struct sockaddr_in));
       _manual_control_msg_mutex.unlock();
 
       msgstr = _manual_control_msg.to_yaml();
-      Info("RunManualControlWork (to: {}): SEND:\n{}", _ardupilotAddr.sin_port,
-           msgstr);
+      Debug("RunManualControlWork (to: {}): SEND:\n{}", _ardupilotAddr.sin_port,
+            msgstr);
       std::this_thread::sleep_for(100ms);
     }
   });
   work.detach();
 }
 
+void GCS::SetDepthHoldMode() {
+  _manual_control_msg_mutex.lock();
+  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
+  _manual_control_msg.buttons |= DEPTH_HOLD_BUTTON;
+  _manual_control_msg_mutex.unlock();
+}
+
+void GCS::SetStabilizeMode() {
+  _manual_control_msg_mutex.lock();
+  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
+  _manual_control_msg.buttons |= STABILIZE_BUTTON;
+  _manual_control_msg_mutex.unlock();
+}
+
+void GCS::Arm(bool arm) {
+  _manual_control_msg_mutex.lock();
+  if (arm && !_armed) {
+    _manual_control_msg.buttons &= ~DISARM_BUTTON;
+    _manual_control_msg.buttons |= ARM_BUTTON;
+  } else if (!arm && _armed) {
+    _manual_control_msg.buttons &= ~ARM_BUTTON;
+    _manual_control_msg.buttons |= DISARM_BUTTON;
+  } else {
+    _manual_control_msg.buttons &= ~ARM_BUTTON;
+    _manual_control_msg.buttons &= ~DISARM_BUTTON;
+  }
+  _manual_control_msg_mutex.unlock();
+}
+
 void GCS::_RunHeartBeatWork() {
   std::thread work([this]() {
-    std::unique_lock<std::mutex> lock(_ardupilotAddrMutex);
-    while (!_ardupilotDetected) {
-      _ardupilotAddrCond.wait_for(lock, 2000ms);
-      Info("RunHeartBeatWork: Waiting for the first ardupilot message...");
-    }
-    lock.unlock();
-    Info("RunHeartBeatWork: Ardupilot message received!");
-
     std::string msgstr;
     uint8_t txbuf[BUFFER_LENGTH];
     while (true) {
@@ -112,7 +137,6 @@ void GCS::_RunHeartBeatWork() {
       hb.base_mode = ((int)MAV_MODE_FLAG::MANUAL_INPUT_ENABLED |
                       (int)MAV_MODE_FLAG::SAFETY_ARMED);
       hb.custom_mode = 0;
-      // hb.mavlink_version = (uint8_t)MAV_PROTOCOL_CAPABILITY::MAVLINK2;
 
       mavlink_message_t auxMsg;
       mavlink::MsgMap msg2send(auxMsg);
@@ -138,24 +162,23 @@ void GCS::_RunRxWork() {
     socklen_t fromlen = sizeof(sockaddr);
     ssize_t recsize;
     struct sockaddr_in ardupilotAddr;
+    uint8_t rxbuff[BUFFER_LENGTH];
     while (true) {
-      memset(_buf, 0, BUFFER_LENGTH);
-      recsize = recvfrom(_sockfd, (void *)_buf, BUFFER_LENGTH, 0,
+      memset(rxbuff, 0, BUFFER_LENGTH);
+      recsize = recvfrom(_sockfd, (void *)rxbuff, BUFFER_LENGTH, 0,
                          (struct sockaddr *)&ardupilotAddr, &fromlen);
 
       if (recsize > 0) {
-        if (!_ardupilotDetected) {
-          _ardupilotAddrMutex.lock();
-          memcpy(&_ardupilotAddr, &ardupilotAddr, sizeof(_ardupilotAddr));
-          _ardupilotDetected = true;
-          _ardupilotAddrCond.notify_all();
-          _ardupilotAddrMutex.unlock();
-        }
+        _ardupilotAddrMutex.lock();
+        memcpy(&_ardupilotAddr, &ardupilotAddr, sizeof(_ardupilotAddr));
+        _ardupilotDetected = true;
+        _ardupilotAddrCond.notify_all();
+        _ardupilotAddrMutex.unlock();
         mavlink_message_t msg;
         mavlink_status_t status;
         std::string outputMsg;
         for (int i = 0; i < recsize; ++i) {
-          if (mavlink_parse_char(MAVLINK_COMM_0, _buf[i], &msg, &status)) {
+          if (mavlink_parse_char(MAVLINK_COMM_0, rxbuff[i], &msg, &status)) {
             // Mavlink Packet Received
             mavlink::MsgMap msgMap(&msg);
 
@@ -171,8 +194,12 @@ void GCS::_RunRxWork() {
                 break;
               }
               outputMsg += "  Fly modes:\n";
-              if (hb.base_mode & (int)MAV_MODE_FLAG::SAFETY_ARMED)
+              if (hb.base_mode & (int)MAV_MODE_FLAG::SAFETY_ARMED) {
                 outputMsg += "   Safety armed.\n";
+                _armed = true;
+              } else
+                _armed = false;
+
               if (hb.base_mode & (int)MAV_MODE_FLAG::MANUAL_INPUT_ENABLED)
                 outputMsg += "   Manual input enabled.\n";
               if (hb.base_mode & (int)MAV_MODE_FLAG::HIL_ENABLED)
