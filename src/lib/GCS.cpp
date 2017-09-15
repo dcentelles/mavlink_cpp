@@ -96,17 +96,64 @@ void GCS::_RunManualControlWork() {
   work.detach();
 }
 
+void GCS::SetManualMode() {
+  if (_currentMode != FLY_MODE_R::MANUAL)
+    _OrderManualMode();
+}
+
+void GCS::_OrderManualMode() {
+  std::string msgstr;
+  uint8_t txbuf[BUFFER_LENGTH];
+  int len, bytes_sent;
+  memset(txbuf, 0, BUFFER_LENGTH);
+  //    mavlink::common::msg::COMMAND_LONG cmd;
+  //    cmd.target_system = 1;
+  //    cmd.target_component = 0;
+  //    cmd.command = (int16_t)mavlink::common::MAV_CMD::DO_SET_MODE;
+  //    cmd.confirmation = 0; //_cmdLongSeq++;
+  //    // cmd.param1 =
+  //    // (int16_t)mavlink::common::MAV_MODE_FLAG::MANUAL_INPUT_ENABLED;
+  //    // cmd.param1 = (int16_t)FLY_MODE_R::MANUAL;
+  //    cmd.param1 = (int16_t)mavlink::common::MAV_MODE::STABILIZE_DISARMED;
+  //    cmd.param2 = cmd.param1;
+  //    cmd.param3 = 0;
+  //    cmd.param4 = 0;
+  //    cmd.param5 = 0;
+  //    cmd.param6 = 0;
+  //    cmd.param7 = 0;
+  //    cmd.param7 = 0;
+  mavlink::common::msg::SET_MODE cmd;
+  cmd.custom_mode = 19;
+  cmd.target_system = 1;
+  cmd.base_mode = 209;
+  mavlink_message_t auxMsg;
+  mavlink::MsgMap msg2send(auxMsg);
+  cmd.serialize(msg2send);
+
+  mavlink::mavlink_finalize_message(&auxMsg, 255, 1, cmd.MIN_LENGTH, cmd.LENGTH,
+                                    cmd.CRC_EXTRA);
+
+  len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  bytes_sent =
+      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+             sizeof(struct sockaddr_in));
+  msgstr = cmd.to_yaml();
+  Debug("OrderManualMode: (to {}):\n{}", _ardupilotAddr.sin_port, msgstr);
+}
+
 void GCS::SetDepthHoldMode() {
   _manual_control_msg_mutex.lock();
   _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
-  _manual_control_msg.buttons |= DEPTH_HOLD_BUTTON;
+  if (_currentMode != FLY_MODE_R::DEPTH_HOLD)
+    _manual_control_msg.buttons |= DEPTH_HOLD_BUTTON;
   _manual_control_msg_mutex.unlock();
 }
 
 void GCS::SetStabilizeMode() {
   _manual_control_msg_mutex.lock();
   _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
-  _manual_control_msg.buttons |= STABILIZE_BUTTON;
+  if (_currentMode != FLY_MODE_R::STABILIZE)
+    _manual_control_msg.buttons |= STABILIZE_BUTTON;
   _manual_control_msg_mutex.unlock();
 }
 
@@ -133,10 +180,14 @@ void GCS::_RunHeartBeatWork() {
       mavlink::common::msg::HEARTBEAT hb;
       int len, bytes_sent;
       memset(txbuf, 0, BUFFER_LENGTH);
+      hb.custom_mode = 0;
       hb.type = (int)MAV_TYPE::GCS;
+      hb.autopilot = 8;
       hb.base_mode = ((int)MAV_MODE_FLAG::MANUAL_INPUT_ENABLED |
                       (int)MAV_MODE_FLAG::SAFETY_ARMED);
-      hb.custom_mode = 0;
+
+      hb.system_status = 4;
+      hb.mavlink_version = 3;
 
       mavlink_message_t auxMsg;
       mavlink::MsgMap msg2send(auxMsg);
@@ -214,6 +265,20 @@ void GCS::_RunRxWork() {
                 outputMsg += "   Test enabled.\n";
               if (hb.base_mode & (int)MAV_MODE_FLAG::CUSTOM_MODE_ENABLED)
                 outputMsg += "   Custom mode enabled.\n";
+
+              switch (hb.custom_mode) {
+              case FLY_MODE_R::MANUAL:
+                _currentMode = FLY_MODE_R::MANUAL;
+                break;
+              case FLY_MODE_R::STABILIZE:
+                _currentMode = FLY_MODE_R::STABILIZE;
+                break;
+              case FLY_MODE_R::DEPTH_HOLD:
+                _currentMode = FLY_MODE_R::DEPTH_HOLD;
+                break;
+              default:
+                break;
+              }
 
               Debug(outputMsg);
               break;
