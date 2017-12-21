@@ -26,7 +26,7 @@ GCS::GCS(uint16_t ownPort) {
   _locAddr.sin_family = AF_INET;
   _locAddr.sin_addr.s_addr = INADDR_ANY;
   _locAddr.sin_port = htons(ownPort);
-  if (fcntl(_sockfd, F_SETFL, O_NONBLOCK | O_ASYNC) < 0) {
+  if (fcntl(_sockfd, F_SETFL, O_ASYNC) < 0) {
     close(_sockfd);
     exit(EXIT_FAILURE);
   }
