@@ -76,7 +76,8 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${${PROJECT_NAME}_CXX_COMPILE_FLAGS}")
 
 SET(SRCPATH src/)
 SET(${PROJECT_NAME}_INCLUDE_DIRS
-    ${SRCPATH}/lib/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/${SRCPATH}/lib/include
+    ${${CPPLOGGING_GIT}_INCLUDE_DIRS}
 )
 
 include_directories(
@@ -98,5 +99,8 @@ target_link_libraries(test0 ${PROJECT_NAME} ${CPPLOGGING_GIT})
 add_executable(testing ${MAINPATH}/mavlink_udp.cpp)
 target_include_directories(testing PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
 target_link_libraries(testing pthread)
+
+SET(${PROJECT_NAME}_INCLUDE_DIRS ${${PROJECT_NAME}_INCLUDE_DIRS} PARENT_SCOPE)
+SET(${PROJECT_NAME}_LIBRARIES ${PROJECT_NAME} ${${CPPLOGGING_GIT}_LIBRARIES} PARENT_SCOPE)
 
 message("End ${PROJECT_NAME_ORIG}")
