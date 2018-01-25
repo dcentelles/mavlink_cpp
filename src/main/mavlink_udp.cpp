@@ -54,7 +54,7 @@
 /* This assumes you have the mavlink headers on your include path
  or in the same folder as this source file */
 
-#include <mavlink_cpp/mavlink/common/common.hpp>
+#include <mavlink_cpp/mavlink/v2_cpp/v2_cpp.h>
 #include <mavlink_cpp/utils.h>
 #include <thread>
 using namespace mavlink;

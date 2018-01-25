@@ -64,7 +64,26 @@ SET(TMP0 ${CMAKE_CURRENT_SOURCE_DIR}/${DEPS_DIR})
 GETPROJECTS(DEPS ${TMP0})
 message(STATUS "Dependencies found in ${TMP0}: ${DEPS}")
 FOREACH(subdir ${DEPS})
-    add_subdirectory(${DEPS_DIR}/${subdir})
+if(GIT_FOUND)
+  SET(SUBPROJECT_PATH ${DEPS_DIR}/${subdir})
+  SET(SUBPROJECT_FULL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${SUBPROJECT_PATH})
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+    WORKING_DIRECTORY ${SUBPROJECT_FULL_PATH}
+    OUTPUT_VARIABLE _sub_build_version
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  SET(SUBPROJECT_GIT_NAME ${subdir}_${_sub_build_version})
+  message(STATUS "Subproject generated git name: " ${SUBPROJECT_GIT_NAME})
+  if (TARGET ${subdir})
+      message(WARNING "Subproject ${SUBPROJECT_GIT_NAME} (${subdir}) has already been built!")
+  else()
+      add_subdirectory(${SUBPROJECT_PATH})
+  endif()
+else()
+  message(STATUS "GIT not found")
+endif()
 ENDFOREACH()
 
 ##################################
@@ -85,7 +104,8 @@ include_directories(
 )
 
 SET(${PROJECT_NAME}_CPP_FILES
-    ${SRCPATH}/lib/GCS.cpp)
+    ${SRCPATH}/lib/GCS.cpp
+    ${SRCPATH}/lib/GCSv1.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${${PROJECT_NAME}_CPP_FILES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
