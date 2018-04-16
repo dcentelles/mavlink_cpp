@@ -1,3 +1,6 @@
 [submodule "modules/cpplogging"]
 	path = modules/cpplogging
 	url = https://github.com/dcentelles/cpplogging.git
+[submodule "src/lib/include/mavlink_cpp/mavlink/c_library_v1"]
+	path = src/lib/include/mavlink_cpp/mavlink/c_library_v1
+	url = https://github.com/mavlink/c_library_v1
