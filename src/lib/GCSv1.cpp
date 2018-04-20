@@ -38,7 +38,13 @@ GCSv1::GCSv1(uint16_t ownPort) {
     close(_sockfd);
     exit(EXIT_FAILURE);
   }
+  _lposned_updated = false;
+  _gposint_updated = false;
+  _gposint_validOrigin = false;
+  _scaledImu2_updated = false;
 }
+
+void GCSv1::EnableGPSMock(bool v) { _enableGPSMock = v; }
 
 void GCSv1::Start() {
   _RunRxWork();
@@ -52,6 +58,8 @@ void GCSv1::Start() {
     Info("Ardupilot detected!");
     _RunHeartBeatWork();
     _RunManualControlWork();
+    if (_enableGPSMock)
+      _RunGPSMock();
     Info("GCS initialized!");
   });
   work.detach();
@@ -64,6 +72,94 @@ void GCSv1::SetManualControl(int16_t x, int16_t y, int16_t z, int16_t r) {
   _manual_control_msg.z = z;
   _manual_control_msg.r = r;
   _manual_control_msg_mutex.unlock();
+}
+void GCSv1::SendGPSOrigin(uint32_t lat, uint32_t lon) {
+  uint8_t txbuff[GCS_BUFFER_LENGTH];
+  uint32_t IGNORE_VELOCITIES_AND_ACCURACY =
+      (GPS_INPUT_IGNORE_FLAG_ALT | GPS_INPUT_IGNORE_FLAG_VEL_HORIZ |
+       GPS_INPUT_IGNORE_FLAG_VEL_VERT | GPS_INPUT_IGNORE_FLAG_SPEED_ACCURACY |
+       GPS_INPUT_IGNORE_FLAG_HORIZONTAL_ACCURACY |
+       GPS_INPUT_IGNORE_FLAG_VERTICAL_ACCURACY);
+
+  std::unique_lock<std::mutex> lock(_gposint_mutex);
+  _gposint_validOrigin = false;
+  memset(txbuff, 0, GCS_BUFFER_LENGTH);
+  mavlink_message_t auxMsg;
+  _gps_input_msg.gps_id = 0;
+  _gps_input_msg.lat = lat;
+  _gps_input_msg.lon = lon;
+  _gps_input_msg.fix_type = 3;
+  _gps_input_msg.hdop = 0.5;
+  _gps_input_msg.vdop = 0.5;
+  _gps_input_msg.satellites_visible = 10;
+  _gps_input_msg.ignore_flags = IGNORE_VELOCITIES_AND_ACCURACY;
+  mavlink_msg_gps_input_encode(255, 0, &auxMsg, &_gps_input_msg);
+  int len = mavlink_msg_to_send_buffer(txbuff, &auxMsg);
+  int attempts = 0;
+  lock.unlock();
+
+  Info("Reseting GPS Origin...");
+  while (attempts < 5) {
+    int bytes_sent =
+        sendto(_sockfd, txbuff, len, 0, (struct sockaddr *)&_ardupilotAddr,
+               sizeof(struct sockaddr_in));
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    attempts += 1;
+  }
+  lock.lock();
+  _gposint_updated = false;
+  while (!_gposint_updated) {
+    Info("Waiting position estimation from ardupilot...");
+    _gposint_cond.wait(lock);
+  }
+  Info("Position estimation received");
+  _gposint_validOrigin = true;
+  _gposint_cond.notify_all();
+}
+
+void GCSv1::_RunGPSMock() {
+  SendGPSOrigin(0, 0);
+  std::thread work([this]() {
+    std::string msgstr;
+    uint8_t txbuff[GCS_BUFFER_LENGTH];
+
+    uint32_t IGNORE_VELOCITIES_AND_ACCURACY =
+        (GPS_INPUT_IGNORE_FLAG_ALT | GPS_INPUT_IGNORE_FLAG_VEL_HORIZ |
+         GPS_INPUT_IGNORE_FLAG_VEL_VERT | GPS_INPUT_IGNORE_FLAG_SPEED_ACCURACY |
+         GPS_INPUT_IGNORE_FLAG_HORIZONTAL_ACCURACY |
+         GPS_INPUT_IGNORE_FLAG_VERTICAL_ACCURACY);
+    while (true) {
+      std::unique_lock<std::mutex> lock(_gposint_mutex);
+      while (!_gposint_validOrigin) {
+        _gposint_cond.wait(lock);
+        while (!_gposint_updated)
+          _gposint_cond.wait_for(lock, 4000ms);
+        if (!_gposint_updated) {
+          Warn("GPS position has not been received!");
+        }
+      }
+      memset(txbuff, 0, GCS_BUFFER_LENGTH);
+      mavlink_message_t auxMsg;
+      _gps_input_msg.gps_id = 0;
+      _gps_input_msg.lat = _gposint.lat;
+      _gps_input_msg.lon = _gposint.lon;
+      _gps_input_msg.fix_type = 3;
+      _gps_input_msg.hdop = 1;
+      _gps_input_msg.vdop = 1;
+      _gps_input_msg.satellites_visible = 10;
+      _gps_input_msg.ignore_flags = IGNORE_VELOCITIES_AND_ACCURACY;
+      mavlink_msg_gps_input_encode(255, 0, &auxMsg, &_gps_input_msg);
+      int len = mavlink_msg_to_send_buffer(txbuff, &auxMsg);
+      // Debug("Sending GPS INPUT");
+      int bytes_sent =
+          sendto(_sockfd, txbuff, len, 0, (struct sockaddr *)&_ardupilotAddr,
+                 sizeof(struct sockaddr_in));
+      _gposint_updated = false;
+      lock.unlock();
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+  });
+  work.detach();
 }
 
 void GCSv1::_RunManualControlWork() {
@@ -88,8 +184,9 @@ void GCSv1::_RunManualControlWork() {
       _manual_control_msg_mutex.unlock();
 
       msgstr = "";
-      Debug("RunManualControlWork (to: {}): SEND:\n{}", _ardupilotAddr.sin_port,
-            msgstr);
+      // Debug("RunManualControlWork (to: {}): SEND:\n{}",
+      // _ardupilotAddr.sin_port,
+      //      msgstr);
       std::this_thread::sleep_for(100ms);
     }
   });
@@ -119,7 +216,7 @@ void GCSv1::_OrderManualMode() {
              sizeof(struct sockaddr_in));
   _socket_mutex.unlock();
   msgstr = "";
-  Debug("OrderManualMode: (to {}):\n{}", _ardupilotAddr.sin_port, msgstr);
+  // Debug("OrderManualMode: (to {}):\n{}", _ardupilotAddr.sin_port, msgstr);
 }
 
 void GCSv1::SetDepthHoldMode() {
@@ -179,7 +276,8 @@ void GCSv1::_RunHeartBeatWork() {
                  sizeof(struct sockaddr_in));
       _socket_mutex.unlock();
       msgstr = "";
-      Debug("RunHeartBeatWork (to {}):\n{}", _ardupilotAddr.sin_port, msgstr);
+      // Debug("RunHeartBeatWork (to {}):\n{}", _ardupilotAddr.sin_port,
+      // msgstr);
       std::this_thread::sleep_for(1s);
     }
   });
@@ -257,7 +355,7 @@ void GCSv1::_RunRxWork() {
                 break;
               }
 
-              Debug(outputMsg);
+              // Debug(outputMsg);
               break;
             }
             case MAVLINK_MSG_ID_MANUAL_CONTROL: {
@@ -266,22 +364,56 @@ void GCSv1::_RunRxWork() {
               // outputMsg = mcm.to_yaml();
               break;
             }
+            case MAVLINK_MSG_ID_SCALED_IMU2: {
+              _scaledImu2_mutex.lock();
+              mavlink_msg_scaled_imu2_decode(&msg, &_scaledImu2);
+              DebugScaledIMU2(_scaledImu2);
+              _scaledImu2_updated = true;
+              _scaledImu2_cond.notify_all();
+              _scaledImu2_mutex.unlock();
+              break;
+            }
+            case MAVLINK_MSG_ID_ATTITUDE: {
+              _attitude_mutex.lock();
+              mavlink_msg_attitude_decode(&msg, &_attitude);
+              DebugAttitude(_attitude);
+              _attitude_updated = true;
+              _attitude_cond.notify_all();
+              _attitude_mutex.unlock();
+              break;
+            }
+            case MAVLINK_MSG_ID_ATTITUDE_QUATERNION: {
+              _attitudeQuaternion_mutex.lock();
+              mavlink_msg_attitude_quaternion_decode(&msg,
+                                                     &_attitudeQuaternion);
+              DebugAttitudeQuaternion(_attitudeQuaternion);
+              _attitudeQuaternion_updated = true;
+              _attitudeQuaternion_cond.notify_all();
+              _attitudeQuaternion_mutex.unlock();
+              break;
+            }
             case MAVLINK_MSG_ID_RAW_IMU: {
               // mavlink::common::msg::RAW_IMU rimsg;
               // rimsg.deserialize(msgMap);
               // outputMsg = rimsg.to_yaml();
               break;
             }
-            case MAVLINK_MSG_ID_LOCAL_POSITION_NED: {
-              // msg::LOCAL_POSITION_NED lpn;
-              // lpn.deserialize(msgMap);
-              // outputMsg = lpn.to_yaml();
+            case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: {
+              _gposint_mutex.lock();
+              mavlink_msg_global_position_int_decode(&msg, &_gposint);
+              //_DebugGlobalPositionInt(_gposint);
+              _gposint_updated = true;
+              _gposint_cond.notify_all();
+              _gposint_mutex.unlock();
               break;
             }
-            case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: {
-              // msg::GLOBAL_POSITION_INT gpi;
-              // gpi.deserialize(msgMap);
-              // outputMsg = gpi.to_yaml();
+            case MAVLINK_MSG_ID_LOCAL_POSITION_NED: {
+              _lposned_mutex.lock();
+              mavlink_msg_local_position_ned_decode(&msg, &_lposned);
+              //_DebugLocalPositonNED(_lposned);
+              _lposned_updated = true;
+              _lposned_cond.notify_all();
+              _lposned_mutex.unlock();
               break;
             }
             case MAVLINK_MSG_ID_RC_CHANNELS_RAW: {
@@ -305,5 +437,87 @@ void GCSv1::_RunRxWork() {
     }
   });
   work.detach();
+}
+void GCSv1::DebugGlobalPositionInt(mavlink_global_position_int_t &msg) {
+  Debug("GLOBAL_POSITION_INT:"
+        "\ttime_boot_ms: {}\n"
+        "\tlat: {}\n"
+        "\tlon: {}\n"
+        "\talt: {}\n"
+        "\trelative_alt {}\n"
+        "\tvx: {}\n"
+        "\tvy: {}\n"
+        "\tvz: {}\n"
+        "\thdg: {}\n",
+        msg.time_boot_ms, msg.lat, msg.lon, msg.alt, msg.relative_alt, msg.vx,
+        msg.vy, msg.vz, msg.hdg);
+}
+void GCSv1::DebugLocalPositonNED(mavlink_local_position_ned_t &msg) {
+  Debug("LOCAL_POSITION_NED:"
+        "\ttime_boot_ms: {}\n"
+        "\tx: {}\n"
+        "\ty: {}\n"
+        "\tz: {}\n"
+        "\tvx: {}\n"
+        "\tvy: {}\n"
+        "\tvz: {}\n",
+        msg.time_boot_ms, msg.x, msg.y, msg.z, msg.vx, msg.vy, msg.vz);
+}
+void GCSv1::WaitForNEDUpdate() {
+  std::unique_lock<std::mutex> lock(_lposned_mutex);
+  while (!_lposned_updated && !_gposint_validOrigin) {
+    _lposned_cond.wait(lock);
+  }
+}
+mavlink_global_position_int_t GCSv1::GetGPS() { return _gposint; }
+mavlink_local_position_ned_t GCSv1::GetNED() { return _lposned; }
+mavlink_scaled_imu2_t GCSv1::GetScaledIMU2() { return _scaledImu2; }
+
+mavlink_attitude_quaternion_t GCSv1::GetAttitudeQuaternion() {
+  return _attitudeQuaternion;
+}
+mavlink_attitude_t GCSv1::GetAttitude() { return _attitude; }
+
+void GCSv1::DebugScaledIMU2(mavlink_scaled_imu2_t &msg) {
+  Debug("SCALED_IMU:"
+        "\ttime_boot_ms: {}\n"
+        "\txacc: {}\n"
+        "\tyacc: {}\n"
+        "\tzacc: {}\n"
+        "\txgyro: {}\n"
+        "\tygyro: {}\n"
+        "\tzgyro: {}\n"
+        "\txmag: {}\n"
+        "\tymag: {}\n"
+        "\tzmag: {}\n",
+        msg.time_boot_ms, msg.xacc, msg.yacc, msg.zacc, msg.xgyro, msg.ygyro,
+        msg.zgyro, msg.xmag, msg.ymag, msg.zmag);
+}
+
+void GCSv1::DebugAttitudeQuaternion(mavlink_attitude_quaternion_t &msg) {
+  Debug("ATTITUDE_QUATERNION:"
+        "\ttime_boot_ms: {}\n"
+        "\tq1: {}\n"
+        "\tq2: {}\n"
+        "\tq3: {}\n"
+        "\tq4: {}\n"
+        "\trollspeed: {}\n"
+        "\tpitchspeed: {}\n"
+        "\tyawspeed: {}\n",
+        msg.time_boot_ms, msg.q1, msg.q2, msg.q3, msg.q4, msg.rollspeed,
+        msg.pitchspeed, msg.yawspeed);
+}
+
+void GCSv1::DebugAttitude(mavlink_attitude_t &msg) {
+  Debug("ATTITUDE:"
+        "\ttime_boot_ms: {}\n"
+        "\troll: {}\n"
+        "\tpitch: {}\n"
+        "\tyaw: {}\n"
+        "\trollspeed: {}\n"
+        "\tpitchspeed: {}\n"
+        "\tyawspeed: {}\n",
+        msg.time_boot_ms, msg.roll, msg.pitch, msg.yaw, msg.rollspeed,
+        msg.pitchspeed, msg.yawspeed);
 }
 }
