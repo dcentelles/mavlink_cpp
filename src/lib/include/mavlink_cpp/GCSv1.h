@@ -32,14 +32,15 @@ public:
   mavlink_attitude_quaternion_t GetAttitudeQuaternion();
   mavlink_attitude_t GetAttitude();
 
-  void DebugGlobalPositionInt(mavlink_global_position_int_t & msg);
-  void DebugScaledIMU2(mavlink_scaled_imu2_t & msg);
-  void DebugLocalPositonNED(mavlink_local_position_ned_t & msg);
-  void DebugAttitudeQuaternion(mavlink_attitude_quaternion_t & msg);
-  void DebugAttitude(mavlink_attitude_t & msg);
+  void DebugGlobalPositionInt(mavlink_global_position_int_t &msg);
+  void DebugScaledIMU2(mavlink_scaled_imu2_t &msg);
+  void DebugRawIMU(mavlink_raw_imu_t &msg);
+  void DebugLocalPositonNED(mavlink_local_position_ned_t &msg);
+  void DebugAttitudeQuaternion(mavlink_attitude_quaternion_t &msg);
+  void DebugAttitude(mavlink_attitude_t &msg);
 
 private:
-#define GCS_BUFFER_LENGTH                                                          \
+#define GCS_BUFFER_LENGTH                                                      \
   2041 // minimum buffer size that can be used with qnx (I don't know why)
   bool _armed;
   int _sockfd;
@@ -70,32 +71,36 @@ private:
   FLY_MODE_R _currentMode;
   bool _enableGPSMock;
 
-  //Received mavlink messages:
+  // Received mavlink messages:
   std::mutex _gposint_mutex;
-  std::condition_variable  _gposint_cond;
+  std::condition_variable _gposint_cond;
   mavlink_global_position_int_t _gposint;
   bool _gposint_updated, _gposint_validOrigin;
 
   std::mutex _lposned_mutex;
-  std::condition_variable  _lposned_cond;
+  std::condition_variable _lposned_cond;
   mavlink_local_position_ned_t _lposned;
   bool _lposned_updated;
 
   std::mutex _scaledImu2_mutex;
-  std::condition_variable  _scaledImu2_cond;
+  std::condition_variable _scaledImu2_cond;
   mavlink_scaled_imu2_t _scaledImu2;
   bool _scaledImu2_updated;
 
+  std::mutex _rawImu_mutex;
+  std::condition_variable _rawImu_cond;
+  mavlink_raw_imu_t _rawImu;
+  bool _rawImu_updated;
+
   std::mutex _attitudeQuaternion_mutex;
-  std::condition_variable  _attitudeQuaternion_cond;
+  std::condition_variable _attitudeQuaternion_cond;
   mavlink_attitude_quaternion_t _attitudeQuaternion;
   bool _attitudeQuaternion_updated;
 
   std::mutex _attitude_mutex;
-  std::condition_variable  _attitude_cond;
+  std::condition_variable _attitude_cond;
   mavlink_attitude_t _attitude;
   bool _attitude_updated;
-
 };
 }
 #endif // GCSV1_H

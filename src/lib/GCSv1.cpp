@@ -42,6 +42,7 @@ GCSv1::GCSv1(uint16_t ownPort) {
   _gposint_updated = false;
   _gposint_validOrigin = false;
   _scaledImu2_updated = false;
+  _enableGPSMock = false;
 }
 
 void GCSv1::EnableGPSMock(bool v) { _enableGPSMock = v; }
@@ -89,8 +90,8 @@ void GCSv1::SendGPSOrigin(uint32_t lat, uint32_t lon) {
   _gps_input_msg.lat = lat;
   _gps_input_msg.lon = lon;
   _gps_input_msg.fix_type = 3;
-  _gps_input_msg.hdop = 0.5;
-  _gps_input_msg.vdop = 0.5;
+  _gps_input_msg.hdop = 1;
+  _gps_input_msg.vdop = 1;
   _gps_input_msg.satellites_visible = 10;
   _gps_input_msg.ignore_flags = IGNORE_VELOCITIES_AND_ACCURACY;
   mavlink_msg_gps_input_encode(255, 0, &auxMsg, &_gps_input_msg);
@@ -144,8 +145,8 @@ void GCSv1::_RunGPSMock() {
       _gps_input_msg.lat = _gposint.lat;
       _gps_input_msg.lon = _gposint.lon;
       _gps_input_msg.fix_type = 3;
-      _gps_input_msg.hdop = 1;
-      _gps_input_msg.vdop = 1;
+      _gps_input_msg.hdop = 0.5;
+      _gps_input_msg.vdop = 0.5;
       _gps_input_msg.satellites_visible = 10;
       _gps_input_msg.ignore_flags = IGNORE_VELOCITIES_AND_ACCURACY;
       mavlink_msg_gps_input_encode(255, 0, &auxMsg, &_gps_input_msg);
@@ -373,10 +374,19 @@ void GCSv1::_RunRxWork() {
               _scaledImu2_mutex.unlock();
               break;
             }
+            case MAVLINK_MSG_ID_RAW_IMU: {
+              _rawImu_mutex.lock();
+              mavlink_msg_raw_imu_decode(&msg, &_rawImu);
+              //DebugRawIMU(_rawImu);
+              _rawImu_updated = true;
+              _rawImu_cond.notify_all();
+              _rawImu_mutex.unlock();
+              break;
+            }
             case MAVLINK_MSG_ID_ATTITUDE: {
               _attitude_mutex.lock();
               mavlink_msg_attitude_decode(&msg, &_attitude);
-              DebugAttitude(_attitude);
+              // DebugAttitude(_attitude);
               _attitude_updated = true;
               _attitude_cond.notify_all();
               _attitude_mutex.unlock();
@@ -386,22 +396,16 @@ void GCSv1::_RunRxWork() {
               _attitudeQuaternion_mutex.lock();
               mavlink_msg_attitude_quaternion_decode(&msg,
                                                      &_attitudeQuaternion);
-              DebugAttitudeQuaternion(_attitudeQuaternion);
+              // DebugAttitudeQuaternion(_attitudeQuaternion);
               _attitudeQuaternion_updated = true;
               _attitudeQuaternion_cond.notify_all();
               _attitudeQuaternion_mutex.unlock();
               break;
             }
-            case MAVLINK_MSG_ID_RAW_IMU: {
-              // mavlink::common::msg::RAW_IMU rimsg;
-              // rimsg.deserialize(msgMap);
-              // outputMsg = rimsg.to_yaml();
-              break;
-            }
             case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: {
               _gposint_mutex.lock();
               mavlink_msg_global_position_int_decode(&msg, &_gposint);
-              //_DebugGlobalPositionInt(_gposint);
+              //DebugGlobalPositionInt(_gposint);
               _gposint_updated = true;
               _gposint_cond.notify_all();
               _gposint_mutex.unlock();
@@ -410,7 +414,7 @@ void GCSv1::_RunRxWork() {
             case MAVLINK_MSG_ID_LOCAL_POSITION_NED: {
               _lposned_mutex.lock();
               mavlink_msg_local_position_ned_decode(&msg, &_lposned);
-              //_DebugLocalPositonNED(_lposned);
+              DebugLocalPositonNED(_lposned);
               _lposned_updated = true;
               _lposned_cond.notify_all();
               _lposned_mutex.unlock();
@@ -491,6 +495,21 @@ void GCSv1::DebugScaledIMU2(mavlink_scaled_imu2_t &msg) {
         "\tymag: {}\n"
         "\tzmag: {}\n",
         msg.time_boot_ms, msg.xacc, msg.yacc, msg.zacc, msg.xgyro, msg.ygyro,
+        msg.zgyro, msg.xmag, msg.ymag, msg.zmag);
+}
+void GCSv1::DebugRawIMU(mavlink_raw_imu_t &msg) {
+  Debug("RAW_IMU:"
+        "\ttime_usec: {}\n"
+        "\txacc: {}\n"
+        "\tyacc: {}\n"
+        "\tzacc: {}\n"
+        "\txgyro: {}\n"
+        "\tygyro: {}\n"
+        "\tzgyro: {}\n"
+        "\txmag: {}\n"
+        "\tymag: {}\n"
+        "\tzmag: {}\n",
+        msg.time_usec, msg.xacc, msg.yacc, msg.zacc, msg.xgyro, msg.ygyro,
         msg.zgyro, msg.xmag, msg.ymag, msg.zmag);
 }
 
