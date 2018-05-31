@@ -31,6 +31,7 @@ public:
   mavlink_scaled_imu2_t GetScaledIMU2();
   mavlink_attitude_quaternion_t GetAttitudeQuaternion();
   mavlink_attitude_t GetAttitude();
+  mavlink_vfr_hud_t GetVfrHud();
 
   void DebugGlobalPositionInt(mavlink_global_position_int_t &msg);
   void DebugScaledIMU2(mavlink_scaled_imu2_t &msg);
@@ -38,6 +39,10 @@ public:
   void DebugLocalPositonNED(mavlink_local_position_ned_t &msg);
   void DebugAttitudeQuaternion(mavlink_attitude_quaternion_t &msg);
   void DebugAttitude(mavlink_attitude_t &msg);
+
+  void SetHeartbeatCb(std::function<void(const mavlink_heartbeat_t &)> handler);
+  void SetAttitudeCb(std::function<void(const mavlink_attitude_t &)> handler);
+  void SetVfrHudCb(std::function<void(const mavlink_vfr_hud_t &)> handler);
 
 private:
 #define GCS_BUFFER_LENGTH                                                      \
@@ -101,6 +106,22 @@ private:
   std::condition_variable _attitude_cond;
   mavlink_attitude_t _attitude;
   bool _attitude_updated;
+  std::function<void(const mavlink_attitude_t &)> _attitude_cb =
+      [](const mavlink_attitude_t &) {};
+
+  std::mutex _vfr_hud_mutex;
+  std::condition_variable _vfr_hud_cond;
+  mavlink_vfr_hud_t _vfr_hud;
+  bool _vfr_hud_updated;
+  std::function<void(const mavlink_vfr_hud_t &)> _vfr_hud_cb =
+      [](const mavlink_vfr_hud_t &) {};
+
+  std::mutex _hb_mutex;
+  std::condition_variable _hb_cond;
+  mavlink_heartbeat_t _hb;
+  bool _hb_updated;
+  std::function<void(const mavlink_heartbeat_t &)> _hb_cb =
+      [](const mavlink_heartbeat_t &) {};
 };
 }
 #endif // GCSV1_H

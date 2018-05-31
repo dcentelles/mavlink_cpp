@@ -311,38 +311,38 @@ void GCSv1::_RunRxWork() {
 
             switch (msg.msgid) {
             case MAVLINK_MSG_ID_HEARTBEAT: {
-              mavlink_heartbeat_t hb;
-              mavlink_msg_heartbeat_decode(&msg, &hb);
+              _hb_mutex.lock();
+              mavlink_msg_heartbeat_decode(&msg, &_hb);
               std::string hbStr = "\n"; // + hb.to_yaml();
               outputMsg = hbStr;
-              switch (hb.type) {
+              switch (_hb.type) {
               case MAV_TYPE_SUBMARINE:
                 outputMsg += " (Submarine)\n";
                 break;
               }
               outputMsg += "  Fly modes:\n";
-              if (hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED) {
+              if (_hb.base_mode & MAV_MODE_FLAG_SAFETY_ARMED) {
                 outputMsg += "   Safety armed.\n";
                 _armed = true;
               } else
                 _armed = false;
 
-              if (hb.base_mode & MAV_MODE_FLAG_MANUAL_INPUT_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_MANUAL_INPUT_ENABLED)
                 outputMsg += "   Manual input enabled.\n";
-              if (hb.base_mode & MAV_MODE_FLAG_HIL_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_HIL_ENABLED)
                 outputMsg += "   HIL enabled.\n";
-              if (hb.base_mode & MAV_MODE_FLAG_STABILIZE_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_STABILIZE_ENABLED)
                 outputMsg += "   Stabilize enabled.\n";
-              if (hb.base_mode & MAV_MODE_FLAG_GUIDED_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_GUIDED_ENABLED)
                 outputMsg += "   Guided enabled.\n";
-              if (hb.base_mode & MAV_MODE_FLAG_AUTO_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_AUTO_ENABLED)
                 outputMsg += "   Auto enabled.\n";
-              if (hb.base_mode & MAV_MODE_FLAG_TEST_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_TEST_ENABLED)
                 outputMsg += "   Test enabled.\n";
-              if (hb.base_mode & MAV_MODE_FLAG_CUSTOM_MODE_ENABLED)
+              if (_hb.base_mode & MAV_MODE_FLAG_CUSTOM_MODE_ENABLED)
                 outputMsg += "   Custom mode enabled.\n";
 
-              switch (hb.custom_mode) {
+              switch (_hb.custom_mode) {
               case FLY_MODE_R::MANUAL:
                 _currentMode = FLY_MODE_R::MANUAL;
                 break;
@@ -355,6 +355,10 @@ void GCSv1::_RunRxWork() {
               default:
                 break;
               }
+              _hb_cb(_hb);
+              _hb_updated = true;
+              _hb_cond.notify_all();
+              _hb_mutex.unlock();
 
               // Debug(outputMsg);
               break;
@@ -368,7 +372,7 @@ void GCSv1::_RunRxWork() {
             case MAVLINK_MSG_ID_SCALED_IMU2: {
               _scaledImu2_mutex.lock();
               mavlink_msg_scaled_imu2_decode(&msg, &_scaledImu2);
-              DebugScaledIMU2(_scaledImu2);
+              // DebugScaledIMU2(_scaledImu2);
               _scaledImu2_updated = true;
               _scaledImu2_cond.notify_all();
               _scaledImu2_mutex.unlock();
@@ -377,16 +381,27 @@ void GCSv1::_RunRxWork() {
             case MAVLINK_MSG_ID_RAW_IMU: {
               _rawImu_mutex.lock();
               mavlink_msg_raw_imu_decode(&msg, &_rawImu);
-              //DebugRawIMU(_rawImu);
+              // DebugRawIMU(_rawImu);
               _rawImu_updated = true;
               _rawImu_cond.notify_all();
               _rawImu_mutex.unlock();
               break;
             }
+            case MAVLINK_MSG_ID_VFR_HUD: {
+              _vfr_hud_mutex.lock();
+              mavlink_msg_vfr_hud_decode(&msg, &_vfr_hud);
+              // DebugRawIMU(_rawImu);
+              _vfr_hud_cb(_vfr_hud);
+              _vfr_hud_updated = true;
+              _vfr_hud_cond.notify_all();
+              _vfr_hud_mutex.unlock();
+              break;
+            }
             case MAVLINK_MSG_ID_ATTITUDE: {
               _attitude_mutex.lock();
               mavlink_msg_attitude_decode(&msg, &_attitude);
-              // DebugAttitude(_attitude);
+              DebugAttitude(_attitude);
+              _attitude_cb(_attitude);
               _attitude_updated = true;
               _attitude_cond.notify_all();
               _attitude_mutex.unlock();
@@ -405,7 +420,7 @@ void GCSv1::_RunRxWork() {
             case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: {
               _gposint_mutex.lock();
               mavlink_msg_global_position_int_decode(&msg, &_gposint);
-              //DebugGlobalPositionInt(_gposint);
+              // DebugGlobalPositionInt(_gposint);
               _gposint_updated = true;
               _gposint_cond.notify_all();
               _gposint_mutex.unlock();
@@ -481,6 +496,12 @@ mavlink_attitude_quaternion_t GCSv1::GetAttitudeQuaternion() {
   return _attitudeQuaternion;
 }
 mavlink_attitude_t GCSv1::GetAttitude() { return _attitude; }
+mavlink_vfr_hud_t GCSv1::GetVfrHud() {
+  _vfr_hud_mutex.lock();
+  mavlink_vfr_hud_t res = _vfr_hud;
+  _vfr_hud_mutex.unlock();
+  return res;
+}
 
 void GCSv1::DebugScaledIMU2(mavlink_scaled_imu2_t &msg) {
   Debug("SCALED_IMU:"
@@ -538,5 +559,18 @@ void GCSv1::DebugAttitude(mavlink_attitude_t &msg) {
         "\tyawspeed: {}\n",
         msg.time_boot_ms, msg.roll, msg.pitch, msg.yaw, msg.rollspeed,
         msg.pitchspeed, msg.yawspeed);
+}
+
+void GCSv1::SetHeartbeatCb(
+    std::function<void(const mavlink_heartbeat_t &)> handler) {
+  _hb_cb = handler;
+}
+void GCSv1::SetAttitudeCb(
+    std::function<void(const mavlink_attitude_t &)> handler) {
+  _attitude_cb = handler;
+}
+void GCSv1::SetVfrHudCb(
+    std::function<void(const mavlink_vfr_hud_t &)> handler) {
+  _vfr_hud_cb = handler;
 }
 }
