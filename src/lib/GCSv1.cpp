@@ -163,6 +163,19 @@ void GCSv1::_RunGPSMock() {
   work.detach();
 }
 
+void GCSv1::SendGPSInput(mavlink_gps_input_t &msg) {
+  uint8_t txbuf[GCS_BUFFER_LENGTH];
+  memset(txbuf, 0, GCS_BUFFER_LENGTH);
+  mavlink_message_t auxMsg;
+  mavlink_msg_gps_input_encode(255, 0, &auxMsg, &msg);
+  uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  _socket_mutex.lock();
+  uint32_t bytes_sent =
+      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+             sizeof(struct sockaddr_in));
+  _socket_mutex.unlock();
+}
+
 void GCSv1::_RunManualControlWork() {
   std::thread work([this]() {
     std::string msgstr;
@@ -285,6 +298,33 @@ void GCSv1::_RunHeartBeatWork() {
   work.detach();
 }
 
+void GCSv1::SendVisionPositionEstimate(
+    mavlink_vision_position_estimate_t &msg) {
+  uint8_t txbuf[GCS_BUFFER_LENGTH];
+  memset(txbuf, 0, GCS_BUFFER_LENGTH);
+  mavlink_message_t auxMsg;
+  mavlink_msg_vision_position_estimate_encode(255, 0, &auxMsg, &msg);
+  uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  _socket_mutex.lock();
+  uint32_t bytes_sent =
+      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+             sizeof(struct sockaddr_in));
+  _socket_mutex.unlock();
+}
+
+void GCSv1::SendGPSFix(mavlink_hil_gps_t &msg) {
+  uint8_t txbuf[GCS_BUFFER_LENGTH];
+  memset(txbuf, 0, GCS_BUFFER_LENGTH);
+  mavlink_message_t auxMsg;
+  mavlink_msg_hil_gps_encode(255, 0, &auxMsg, &msg);
+  uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  _socket_mutex.lock();
+  uint32_t bytes_sent =
+      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+             sizeof(struct sockaddr_in));
+  _socket_mutex.unlock();
+}
+
 void GCSv1::_RunRxWork() {
   std::thread work([this]() {
     socklen_t fromlen = sizeof(sockaddr);
@@ -373,6 +413,7 @@ void GCSv1::_RunRxWork() {
               _scaledImu2_mutex.lock();
               mavlink_msg_scaled_imu2_decode(&msg, &_scaledImu2);
               // DebugScaledIMU2(_scaledImu2);
+              _scaledImu2_cb(_scaledImu2);
               _scaledImu2_updated = true;
               _scaledImu2_cond.notify_all();
               _scaledImu2_mutex.unlock();
@@ -400,7 +441,7 @@ void GCSv1::_RunRxWork() {
             case MAVLINK_MSG_ID_ATTITUDE: {
               _attitude_mutex.lock();
               mavlink_msg_attitude_decode(&msg, &_attitude);
-              DebugAttitude(_attitude);
+              // DebugAttitude(_attitude);
               _attitude_cb(_attitude);
               _attitude_updated = true;
               _attitude_cond.notify_all();
@@ -420,7 +461,8 @@ void GCSv1::_RunRxWork() {
             case MAVLINK_MSG_ID_GLOBAL_POSITION_INT: {
               _gposint_mutex.lock();
               mavlink_msg_global_position_int_decode(&msg, &_gposint);
-              // DebugGlobalPositionInt(_gposint);
+              DebugGlobalPositionInt(_gposint);
+              _gposint_cb(_gposint);
               _gposint_updated = true;
               _gposint_cond.notify_all();
               _gposint_mutex.unlock();
@@ -430,6 +472,7 @@ void GCSv1::_RunRxWork() {
               _lposned_mutex.lock();
               mavlink_msg_local_position_ned_decode(&msg, &_lposned);
               DebugLocalPositonNED(_lposned);
+              _lposned_cb(_lposned);
               _lposned_updated = true;
               _lposned_cond.notify_all();
               _lposned_mutex.unlock();
@@ -572,5 +615,17 @@ void GCSv1::SetAttitudeCb(
 void GCSv1::SetVfrHudCb(
     std::function<void(const mavlink_vfr_hud_t &)> handler) {
   _vfr_hud_cb = handler;
+}
+void GCSv1::SetLocalPositionNEDCb(
+    std::function<void(const mavlink_local_position_ned_t &)> handler) {
+  _lposned_cb = handler;
+}
+void GCSv1::SetGlobalPositionInt(
+    std::function<void(const mavlink_global_position_int_t &)> handler) {
+  _gposint_cb = handler;
+}
+void GCSv1::SetSclaedIMU2(
+    std::function<void(const mavlink_scaled_imu2_t &)> handler) {
+  _scaledImu2_cb = handler;
 }
 }

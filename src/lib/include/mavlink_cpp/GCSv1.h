@@ -26,6 +26,10 @@ public:
   void SendGPSOrigin(uint32_t lat, uint32_t lon);
   void Arm(bool);
   void WaitForNEDUpdate();
+  void SendVisionPositionEstimate(mavlink_vision_position_estimate_t &msg);
+  void SendGPSFix(mavlink_hil_gps_t & msg);
+  void SendGPSInput(mavlink_gps_input_t & msg);
+
   mavlink_local_position_ned_t GetNED();
   mavlink_global_position_int_t GetGPS();
   mavlink_scaled_imu2_t GetScaledIMU2();
@@ -43,6 +47,9 @@ public:
   void SetHeartbeatCb(std::function<void(const mavlink_heartbeat_t &)> handler);
   void SetAttitudeCb(std::function<void(const mavlink_attitude_t &)> handler);
   void SetVfrHudCb(std::function<void(const mavlink_vfr_hud_t &)> handler);
+  void SetLocalPositionNEDCb(std::function<void(const mavlink_local_position_ned_t &)> handler);
+  void SetGlobalPositionInt(std::function<void(const mavlink_global_position_int_t &)> handler);
+  void SetSclaedIMU2(std::function<void(const mavlink_scaled_imu2_t &)> handler);
 
 private:
 #define GCS_BUFFER_LENGTH                                                      \
@@ -81,16 +88,22 @@ private:
   std::condition_variable _gposint_cond;
   mavlink_global_position_int_t _gposint;
   bool _gposint_updated, _gposint_validOrigin;
+  std::function<void(const mavlink_global_position_int_t &)> _gposint_cb =
+      [](const mavlink_global_position_int_t &) {};
 
   std::mutex _lposned_mutex;
   std::condition_variable _lposned_cond;
   mavlink_local_position_ned_t _lposned;
   bool _lposned_updated;
+  std::function<void(const mavlink_local_position_ned_t &)> _lposned_cb =
+      [](const mavlink_local_position_ned_t &) {};
 
   std::mutex _scaledImu2_mutex;
   std::condition_variable _scaledImu2_cond;
   mavlink_scaled_imu2_t _scaledImu2;
   bool _scaledImu2_updated;
+  std::function<void(const mavlink_scaled_imu2_t &)> _scaledImu2_cb =
+      [](const mavlink_scaled_imu2_t &) {};
 
   std::mutex _rawImu_mutex;
   std::condition_variable _rawImu_cond;
