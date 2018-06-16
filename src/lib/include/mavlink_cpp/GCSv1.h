@@ -51,6 +51,8 @@ public:
   void SetGlobalPositionInt(std::function<void(const mavlink_global_position_int_t &)> handler);
   void SetSclaedIMU2(std::function<void(const mavlink_scaled_imu2_t &)> handler);
 
+  void EnableManualControl(bool enable);
+
 private:
 #define GCS_BUFFER_LENGTH                                                      \
   2041 // minimum buffer size that can be used with qnx (I don't know why)
@@ -82,6 +84,12 @@ private:
 
   FLY_MODE_R _currentMode;
   bool _enableGPSMock;
+  std::mutex _enableGPSMock_mutex;
+  std::condition_variable _enableGPSMock_cond;
+
+  bool _enableManualControl;
+  std::mutex _enableManualControl_mutex;
+  std::condition_variable _enableManualControl_cond;
 
   // Received mavlink messages:
   std::mutex _gposint_mutex;

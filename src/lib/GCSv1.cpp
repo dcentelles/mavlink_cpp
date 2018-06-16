@@ -43,9 +43,14 @@ GCSv1::GCSv1(uint16_t ownPort) {
   _gposint_validOrigin = false;
   _scaledImu2_updated = false;
   _enableGPSMock = false;
+  _enableManualControl = true;
 }
 
-void GCSv1::EnableGPSMock(bool v) { _enableGPSMock = v; }
+void GCSv1::EnableGPSMock(bool v) {
+  std::unique_lock<std::mutex> lock(_enableGPSMock_mutex);
+  _enableGPSMock = v;
+  _enableGPSMock_cond.notify_all();
+}
 
 void GCSv1::Start() {
   _RunRxWork();
@@ -59,8 +64,10 @@ void GCSv1::Start() {
     Info("Ardupilot detected!");
     _RunHeartBeatWork();
     _RunManualControlWork();
-    if (_enableGPSMock)
+    if (_enableGPSMock) {
+      SendGPSOrigin(0, 0);
       _RunGPSMock();
+    }
     Info("GCS initialized!");
   });
   work.detach();
@@ -119,7 +126,6 @@ void GCSv1::SendGPSOrigin(uint32_t lat, uint32_t lon) {
 }
 
 void GCSv1::_RunGPSMock() {
-  SendGPSOrigin(0, 0);
   std::thread work([this]() {
     std::string msgstr;
     uint8_t txbuff[GCS_BUFFER_LENGTH];
@@ -176,11 +182,21 @@ void GCSv1::SendGPSInput(mavlink_gps_input_t &msg) {
   _socket_mutex.unlock();
 }
 
+void GCSv1::EnableManualControl(bool enable) {
+  std::unique_lock<std::mutex> lock(_enableManualControl_mutex);
+  _enableManualControl = enable;
+  _enableManualControl_cond.notify_all();
+}
+
 void GCSv1::_RunManualControlWork() {
   std::thread work([this]() {
     std::string msgstr;
     uint8_t txbuff[GCS_BUFFER_LENGTH];
     while (true) {
+      std::unique_lock<std::mutex> lock(_enableManualControl_mutex);
+      while (!_enableManualControl) {
+        _enableManualControl_cond.wait(lock);
+      }
       int len, bytes_sent;
       memset(txbuff, 0, GCS_BUFFER_LENGTH);
       mavlink_message_t auxMsg;
