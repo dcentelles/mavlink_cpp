@@ -27,8 +27,8 @@ public:
   void Arm(bool);
   void WaitForNEDUpdate();
   void SendVisionPositionEstimate(mavlink_vision_position_estimate_t &msg);
-  void SendGPSFix(mavlink_hil_gps_t & msg);
-  void SendGPSInput(mavlink_gps_input_t & msg);
+  void SendGPSFix(mavlink_hil_gps_t &msg);
+  void SendGPSInput(mavlink_gps_input_t &msg);
 
   mavlink_local_position_ned_t GetNED();
   mavlink_global_position_int_t GetGPS();
@@ -47,11 +47,17 @@ public:
   void SetHeartbeatCb(std::function<void(const mavlink_heartbeat_t &)> handler);
   void SetAttitudeCb(std::function<void(const mavlink_attitude_t &)> handler);
   void SetVfrHudCb(std::function<void(const mavlink_vfr_hud_t &)> handler);
-  void SetLocalPositionNEDCb(std::function<void(const mavlink_local_position_ned_t &)> handler);
-  void SetGlobalPositionInt(std::function<void(const mavlink_global_position_int_t &)> handler);
-  void SetSclaedIMU2(std::function<void(const mavlink_scaled_imu2_t &)> handler);
+  void SetLocalPositionNEDCb(
+      std::function<void(const mavlink_local_position_ned_t &)> handler);
+  void SetGlobalPositionInt(
+      std::function<void(const mavlink_global_position_int_t &)> handler);
+  void
+  SetSclaedIMU2(std::function<void(const mavlink_scaled_imu2_t &)> handler);
+  void SetHomeUpdatedCb(
+      std::function<void(const mavlink_home_position_t &)> handler);
 
   void EnableManualControl(bool enable);
+  bool HomeSet() { return _home_position_set; }
 
 private:
 #define GCS_BUFFER_LENGTH                                                      \
@@ -143,6 +149,15 @@ private:
   bool _hb_updated;
   std::function<void(const mavlink_heartbeat_t &)> _hb_cb =
       [](const mavlink_heartbeat_t &) {};
+
+  std::mutex _home_mutex;
+  std::condition_variable _home_cond;
+  mavlink_home_position_t _home;
+  bool _home_updated;
+  std::function<void(const mavlink_home_position_t &)> _home_cb =
+      [](const mavlink_home_position_t &) {};
+
+  bool _home_position_set = false;
 };
 }
 #endif // GCSV1_H

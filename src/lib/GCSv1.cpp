@@ -494,6 +494,16 @@ void GCSv1::_RunRxWork() {
               _lposned_mutex.unlock();
               break;
             }
+            case MAVLINK_MSG_ID_HOME_POSITION: {
+              _home_mutex.lock();
+              mavlink_msg_home_position_decode(&msg, &_home);
+              _home_cb(_home);
+              _home_updated = true;
+              _home_position_set = true;
+              _home_cond.notify_all();
+              _home_mutex.unlock();
+              break;
+            }
             case MAVLINK_MSG_ID_RC_CHANNELS_RAW: {
               // msg::RC_CHANNELS_RAW rcov;
               // rcov.deserialize(msgMap);
@@ -643,5 +653,9 @@ void GCSv1::SetGlobalPositionInt(
 void GCSv1::SetSclaedIMU2(
     std::function<void(const mavlink_scaled_imu2_t &)> handler) {
   _scaledImu2_cb = handler;
+}
+void GCSv1::SetHomeUpdatedCb(
+    std::function<void(const mavlink_home_position_t &)> handler) {
+  _home_cb = handler;
 }
 }
