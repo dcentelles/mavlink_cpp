@@ -267,11 +267,6 @@ void GCSv1::SetStabilizeMode() {
 
 void GCSv1::SetFlyMode(FLY_MODE_R flymode)
 {
-  _manual_control_msg_mutex.lock();
-//  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
-//  if (_currentMode != flymode)
-//    _manual_control_msg.buttons |= STABILIZE_BUTTON;
-  _manual_control_msg_mutex.unlock();
 }
 
 void GCSv1::Arm(bool arm) {
