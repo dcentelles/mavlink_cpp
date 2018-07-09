@@ -223,31 +223,7 @@ void GCSv1::_RunManualControlWork() {
   work.detach();
 }
 
-void GCSv1::SetManualMode() {
-  if (_currentMode != FLY_MODE_R::MANUAL)
-    _OrderManualMode();
-}
-
-void GCSv1::_OrderManualMode() {
-  std::string msgstr;
-  uint8_t txbuf[GCS_BUFFER_LENGTH];
-  int len, bytes_sent;
-  memset(txbuf, 0, GCS_BUFFER_LENGTH);
-  mavlink_set_mode_t cmd;
-  cmd.custom_mode = 19;
-  cmd.target_system = 1;
-  cmd.base_mode = 209;
-  mavlink_message_t auxMsg;
-  mavlink_msg_set_mode_encode(255, 0, &auxMsg, &cmd);
-  len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
-  _socket_mutex.lock();
-  bytes_sent =
-      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
-             sizeof(struct sockaddr_in));
-  _socket_mutex.unlock();
-  msgstr = "";
-  // Debug("OrderManualMode: (to {}):\n{}", _ardupilotAddr.sin_port, msgstr);
-}
+void GCSv1::SetManualMode() { SetFlyMode(FLY_MODE_R::MANUAL); }
 
 void GCSv1::SetDepthHoldMode() {
   _manual_control_msg_mutex.lock();
@@ -265,8 +241,39 @@ void GCSv1::SetStabilizeMode() {
   _manual_control_msg_mutex.unlock();
 }
 
-void GCSv1::SetFlyMode(FLY_MODE_R flymode)
-{
+void GCSv1::SetFlyMode(FLY_MODE_R flymode) {
+  if (_currentMode != flymode) {
+    uint8_t txbuf[GCS_BUFFER_LENGTH];
+    memset(txbuf, 0, GCS_BUFFER_LENGTH);
+    mavlink_set_mode_t cmd;
+    cmd.custom_mode = flymode;
+    cmd.target_system = 1;
+    cmd.base_mode = 209;
+    mavlink_message_t auxMsg;
+    mavlink_msg_set_mode_encode(255, 0, &auxMsg, &cmd);
+    uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+    _socket_mutex.lock();
+    uint32_t bytes_sent =
+        sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+               sizeof(struct sockaddr_in));
+    _socket_mutex.unlock();
+  }
+  //  mavlink_command_long_t cmd;
+  //  cmd.command = MAV_CMD_DO_SET_MODE;
+  //  //see
+  //  https://github.com/mavlink/mavros/blob/master/mavros_msgs/srv/SetMode.srv
+  //  //and http://wiki.ros.org/mavros/CustomModes
+  //  //and MAV_CMD_DO_SET_MODE in http://mavlink.org/messages/common
+  //  cmd.param1 = 209;
+  //  cmd.param2 = flymode;
+  //  mavlink_message_t auxMsg;
+  //  mavlink_msg_command_long_encode(255, 0, &auxMsg, &cmd);
+  //  uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  //  _socket_mutex.lock();
+  //  uint32_t bytes_sent =
+  //      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+  //             sizeof(struct sockaddr_in));
+  //  _socket_mutex.unlock();
 }
 
 void GCSv1::Arm(bool arm) {
@@ -402,19 +409,7 @@ void GCSv1::_RunRxWork() {
               if (_hb.base_mode & MAV_MODE_FLAG_CUSTOM_MODE_ENABLED)
                 outputMsg += "   Custom mode enabled.\n";
 
-              switch (_hb.custom_mode) {
-              case FLY_MODE_R::MANUAL:
-                _currentMode = FLY_MODE_R::MANUAL;
-                break;
-              case FLY_MODE_R::STABILIZE:
-                _currentMode = FLY_MODE_R::STABILIZE;
-                break;
-              case FLY_MODE_R::DEPTH_HOLD:
-                _currentMode = FLY_MODE_R::DEPTH_HOLD;
-                break;
-              default:
-                break;
-              }
+              _currentMode = static_cast<FLY_MODE_R>(_hb.custom_mode);
               _hb_cb(_hb);
               _hb_updated = true;
               _hb_cond.notify_all();

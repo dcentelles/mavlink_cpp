@@ -73,8 +73,6 @@ private:
   void _RunManualControlWork();
   void _RunGPSMock();
 
-  void _OrderManualMode();
-
   bool _ardupilotDetected;
   std::mutex _ardupilotAddrMutex;
   std::condition_variable _ardupilotAddrCond;
