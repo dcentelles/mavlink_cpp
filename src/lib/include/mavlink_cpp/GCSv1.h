@@ -30,6 +30,7 @@ public:
   void SendVisionPositionEstimate(mavlink_vision_position_estimate_t &msg);
   void SendGPSFix(mavlink_hil_gps_t &msg);
   void SendGPSInput(mavlink_gps_input_t &msg);
+  void SendSetPositionTargetLocalNED(mavlink_set_position_target_local_ned_t &msg);
 
   mavlink_local_position_ned_t GetNED();
   mavlink_global_position_int_t GetGPS();
@@ -59,6 +60,7 @@ public:
 
   void EnableManualControl(bool enable);
   bool HomeSet() { return _home_position_set; }
+  void SetHome(double lat, double lon, double alt);
 
 private:
 #define GCS_BUFFER_LENGTH                                                      \

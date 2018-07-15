@@ -182,8 +182,22 @@ void GCSv1::SendGPSInput(mavlink_gps_input_t &msg) {
   _socket_mutex.unlock();
 }
 
+void GCSv1::SendSetPositionTargetLocalNED(
+    mavlink_set_position_target_local_ned_t &msg) {
+  uint8_t txbuf[GCS_BUFFER_LENGTH];
+  memset(txbuf, 0, GCS_BUFFER_LENGTH);
+  mavlink_message_t auxMsg;
+  msg.target_system = 1;
+  mavlink_msg_set_position_target_local_ned_encode(255, 0, &auxMsg, &msg);
+  uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  _socket_mutex.lock();
+  uint32_t bytes_sent =
+      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+             sizeof(struct sockaddr_in));
+  _socket_mutex.unlock();
+}
+
 void GCSv1::EnableManualControl(bool enable) {
-  std::unique_lock<std::mutex> lock(_enableManualControl_mutex);
   _enableManualControl = enable;
   _enableManualControl_cond.notify_all();
 }
@@ -226,19 +240,55 @@ void GCSv1::_RunManualControlWork() {
 void GCSv1::SetManualMode() { SetFlyMode(FLY_MODE_R::MANUAL); }
 
 void GCSv1::SetDepthHoldMode() {
-  _manual_control_msg_mutex.lock();
-  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
-  if (_currentMode != FLY_MODE_R::DEPTH_HOLD)
-    _manual_control_msg.buttons |= DEPTH_HOLD_BUTTON;
-  _manual_control_msg_mutex.unlock();
+  //  _manual_control_msg_mutex.lock();
+  //  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
+  //  if (_currentMode != FLY_MODE_R::DEPTH_HOLD)
+  //    _manual_control_msg.buttons |= DEPTH_HOLD_BUTTON;
+  //  _manual_control_msg_mutex.unlock();
+  SetFlyMode(FLY_MODE_R::DEPTH_HOLD);
 }
 
 void GCSv1::SetStabilizeMode() {
-  _manual_control_msg_mutex.lock();
-  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
-  if (_currentMode != FLY_MODE_R::STABILIZE)
-    _manual_control_msg.buttons |= STABILIZE_BUTTON;
-  _manual_control_msg_mutex.unlock();
+  //  _manual_control_msg_mutex.lock();
+  //  _manual_control_msg.buttons &= ~MODE_BUTTONS_MASK;
+  //  if (_currentMode != FLY_MODE_R::STABILIZE)
+  //    _manual_control_msg.buttons |= STABILIZE_BUTTON;
+  //  _manual_control_msg_mutex.unlock();
+  SetFlyMode(FLY_MODE_R::STABILIZE);
+}
+
+void GCSv1::SetHome(double lat, double lon, double alt) {
+  uint8_t txbuf[GCS_BUFFER_LENGTH];
+//    mavlink_command_long_t cmd;
+//    cmd.target_system = 1;
+//    cmd.target_component = 0;
+//    cmd.command = MAV_CMD_DO_SET_HOME;
+//    cmd.param5 = lat * 1e7;
+//    cmd.param6 = lon * 1e7;
+//    cmd.param7 = alt * 1e3;
+//    mavlink_message_t auxMsg;
+//    mavlink_msg_command_long_encode(255, 0, &auxMsg, &cmd);
+//    uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+//    _socket_mutex.lock();
+//    uint32_t bytes_sent =
+//        sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+//               sizeof(struct sockaddr_in));
+//    _socket_mutex.unlock();
+
+  memset(txbuf, 0, GCS_BUFFER_LENGTH);
+  mavlink_set_home_position_t cmd;
+  cmd.target_system = 1;
+  cmd.latitude = lat * 1e7;
+  cmd.longitude = lon * 1e7;
+  cmd.altitude = alt * 1e3;
+  mavlink_message_t auxMsg;
+  mavlink_msg_set_home_position_encode(255, 0, &auxMsg, &cmd);
+  uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  _socket_mutex.lock();
+  uint32_t bytes_sent =
+      sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+             sizeof(struct sockaddr_in));
+  _socket_mutex.unlock();
 }
 
 void GCSv1::SetFlyMode(FLY_MODE_R flymode) {
@@ -277,18 +327,40 @@ void GCSv1::SetFlyMode(FLY_MODE_R flymode) {
 }
 
 void GCSv1::Arm(bool arm) {
-  _manual_control_msg_mutex.lock();
-  if (arm && !_armed) {
-    _manual_control_msg.buttons &= ~DISARM_BUTTON;
-    _manual_control_msg.buttons |= ARM_BUTTON;
-  } else if (!arm && _armed) {
-    _manual_control_msg.buttons &= ~ARM_BUTTON;
-    _manual_control_msg.buttons |= DISARM_BUTTON;
-  } else {
-    _manual_control_msg.buttons &= ~ARM_BUTTON;
-    _manual_control_msg.buttons &= ~DISARM_BUTTON;
+  if (_enableManualControl) {
+    _manual_control_msg_mutex.lock();
+    if (arm && !_armed) {
+      _manual_control_msg.buttons &= ~DISARM_BUTTON;
+      _manual_control_msg.buttons |= ARM_BUTTON;
+    } else if (!arm && _armed) {
+      _manual_control_msg.buttons &= ~ARM_BUTTON;
+      _manual_control_msg.buttons |= DISARM_BUTTON;
+    } else {
+      _manual_control_msg.buttons &= ~ARM_BUTTON;
+      _manual_control_msg.buttons &= ~DISARM_BUTTON;
+    }
+    _manual_control_msg_mutex.unlock();
+  } else // SEND MAV_CMD_COMPONENT_ARM_DISARM
+  {
+    uint8_t txbuf[GCS_BUFFER_LENGTH];
+    mavlink_command_long_t cmd;
+    cmd.target_system = 1;
+    cmd.target_component = 0;
+    cmd.command = MAV_CMD_COMPONENT_ARM_DISARM;
+    if (arm && !_armed) {
+      cmd.param1 = 1;
+    } else if (!arm && _armed) {
+      cmd.param1 = 0;
+    }
+    mavlink_message_t auxMsg;
+    mavlink_msg_command_long_encode(255, 0, &auxMsg, &cmd);
+    uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+    _socket_mutex.lock();
+    uint32_t bytes_sent =
+        sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+               sizeof(struct sockaddr_in));
+    _socket_mutex.unlock();
   }
-  _manual_control_msg_mutex.unlock();
 }
 
 void GCSv1::_RunHeartBeatWork() {
