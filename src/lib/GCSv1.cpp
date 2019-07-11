@@ -206,6 +206,7 @@ void GCSv1::_RunManualControlWork() {
   std::thread work([this]() {
     std::string msgstr;
     uint8_t txbuff[GCS_BUFFER_LENGTH];
+    _manual_control_msg.buttons = 0;
     while (true) {
       std::unique_lock<std::mutex> lock(_enableManualControl_mutex);
       while (!_enableManualControl) {
@@ -259,21 +260,21 @@ void GCSv1::SetStabilizeMode() {
 
 void GCSv1::SetHome(double lat, double lon, double alt) {
   uint8_t txbuf[GCS_BUFFER_LENGTH];
-//    mavlink_command_long_t cmd;
-//    cmd.target_system = 1;
-//    cmd.target_component = 0;
-//    cmd.command = MAV_CMD_DO_SET_HOME;
-//    cmd.param5 = lat * 1e7;
-//    cmd.param6 = lon * 1e7;
-//    cmd.param7 = alt * 1e3;
-//    mavlink_message_t auxMsg;
-//    mavlink_msg_command_long_encode(255, 0, &auxMsg, &cmd);
-//    uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
-//    _socket_mutex.lock();
-//    uint32_t bytes_sent =
-//        sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
-//               sizeof(struct sockaddr_in));
-//    _socket_mutex.unlock();
+  //    mavlink_command_long_t cmd;
+  //    cmd.target_system = 1;
+  //    cmd.target_component = 0;
+  //    cmd.command = MAV_CMD_DO_SET_HOME;
+  //    cmd.param5 = lat * 1e7;
+  //    cmd.param6 = lon * 1e7;
+  //    cmd.param7 = alt * 1e3;
+  //    mavlink_message_t auxMsg;
+  //    mavlink_msg_command_long_encode(255, 0, &auxMsg, &cmd);
+  //    uint32_t len = mavlink_msg_to_send_buffer(txbuf, &auxMsg);
+  //    _socket_mutex.lock();
+  //    uint32_t bytes_sent =
+  //        sendto(_sockfd, txbuf, len, 0, (struct sockaddr *)&_ardupilotAddr,
+  //               sizeof(struct sockaddr_in));
+  //    _socket_mutex.unlock();
 
   memset(txbuf, 0, GCS_BUFFER_LENGTH);
   mavlink_set_home_position_t cmd;
@@ -729,4 +730,4 @@ void GCSv1::SetHomeUpdatedCb(
     std::function<void(const mavlink_home_position_t &)> handler) {
   _home_cb = handler;
 }
-}
+} // namespace mavlink_cpp
