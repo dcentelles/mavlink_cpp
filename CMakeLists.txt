@@ -104,8 +104,7 @@ include_directories(
 )
 
 SET(${PROJECT_NAME}_CPP_FILES
-    ${SRCPATH}/lib/GCS.cpp
-    ${SRCPATH}/lib/GCSv1.cpp)
+    ${SRCPATH}/lib/GCS.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${${PROJECT_NAME}_CPP_FILES})
 target_include_directories(${PROJECT_NAME} PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
@@ -113,12 +112,12 @@ target_link_libraries(${PROJECT_NAME} ${CPPLOGGING_GIT})
 
 SET(MAINPATH ${SRCPATH}main)
 
-add_executable(test0 ${MAINPATH}/test0.cpp)
-target_link_libraries(test0 ${PROJECT_NAME} ${CPPLOGGING_GIT})
+add_executable(mavlink_cpp_example0 ${MAINPATH}/mavlink_cpp_example0.cpp)
+target_link_libraries(mavlink_cpp_example0 ${PROJECT_NAME} ${CPPLOGGING_GIT})
 
-add_executable(testing ${MAINPATH}/mavlink_udp.cpp)
-target_include_directories(testing PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
-target_link_libraries(testing pthread)
+add_executable(mavlink_raw_example0 ${MAINPATH}/mavlink_raw_example0.cpp)
+target_include_directories(mavlink_raw_example0 PUBLIC ${${PROJECT_NAME}_INCLUDE_DIRS})
+target_link_libraries(mavlink_raw_example0 pthread)
 
 SET(${PROJECT_NAME}_INCLUDE_DIRS ${${PROJECT_NAME}_INCLUDE_DIRS} CACHE STRING "${PROJECT_NAME} include dirs")
 SET(${PROJECT_NAME}_LIBRARIES ${PROJECT_NAME} ${${CPPLOGGING_GIT}_LIBRARIES} CACHE STRING "${PROJECT_NAME} libraries")
