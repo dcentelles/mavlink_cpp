@@ -13,10 +13,16 @@ namespace mavlink_cpp {
 
 using namespace cpplogging;
 
+class GCS;
+typedef std::shared_ptr<GCS> GCSPtr;
+
 class GCS : public Logger {
 
 public:
-  GCS(uint16_t ownPort);
+  GCS(const uint16_t &ownPort);
+  static GCSPtr Create(const uint16_t &ownPort) {
+    return GCSPtr(new GCS(ownPort));
+  }
   void Start();
   void SetManualControl(int16_t x, int16_t y, int16_t z, int16_t r);
   void SetDepthHoldMode();
@@ -30,7 +36,8 @@ public:
   void SendVisionPositionEstimate(mavlink_vision_position_estimate_t &msg);
   void SendGPSFix(mavlink_hil_gps_t &msg);
   void SendGPSInput(mavlink_gps_input_t &msg);
-  void SendSetPositionTargetLocalNED(mavlink_set_position_target_local_ned_t &msg);
+  void
+  SendSetPositionTargetLocalNED(mavlink_set_position_target_local_ned_t &msg);
 
   mavlink_local_position_ned_t GetNED();
   mavlink_global_position_int_t GetGPS();
@@ -61,6 +68,9 @@ public:
   void EnableManualControl(bool enable);
   bool HomeSet() { return _home_position_set; }
   void SetHome(double lat, double lon, double alt);
+  bool Armed();
+
+  FLY_MODE_R GetCurrentNavMode();
 
 private:
 #define GCS_BUFFER_LENGTH                                                      \
@@ -163,5 +173,5 @@ private:
 
   bool _home_position_set = false;
 };
-}
+} // namespace mavlink_cpp
 #endif // GCSV1_H

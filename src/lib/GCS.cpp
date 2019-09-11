@@ -21,7 +21,7 @@ namespace mavlink_cpp {
 
 using namespace std::chrono_literals;
 
-GCS::GCS(uint16_t ownPort) {
+GCS::GCS(const uint16_t &ownPort) {
   _sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
   memset(&_locAddr, 0, sizeof(_locAddr));
   _locAddr.sin_family = AF_INET;
@@ -292,6 +292,10 @@ void GCS::SetHome(double lat, double lon, double alt) {
              sizeof(struct sockaddr_in));
   _socket_mutex.unlock();
 }
+
+bool GCS::Armed() { return _armed; }
+
+FLY_MODE_R GCS::GetCurrentNavMode() { return _currentMode; }
 
 void GCS::_RunNavModeWork() {
   std::thread work([this]() {
